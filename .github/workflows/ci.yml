@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CI: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      # Tauri Linux builds require WebKitGTK, GTK, AppIndicator, librsvg, and patchelf.
+      # Keep this explicit so Ubuntu failures point to desktop runtime prerequisites.
+      - name: Install Linux web build prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - name: Allow required pnpm build dependencies
+        run: pnpm config set onlyBuiltDependencies esbuild
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Rust format check
+        run: cargo fmt --all --check
+
+      - name: Rust lint check
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Frontend typecheck
+        run: pnpm exec tsc --noEmit
+
+      - name: Rust tests
+        run: cargo test
+
+      - name: Frontend unit tests
+        run: pnpm vitest run
+
+      - name: Frontend build and typecheck
+        run: pnpm build
+
+      - name: Start disposable registry fixture for Docker-backed E2E
+        if: runner.os == 'Linux'
+        run: docker compose -f docker-compose.test.yml up -d registry
+
+      - name: Install Playwright browsers
+        if: runner.os == 'Linux'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Playwright E2E tests
+        if: runner.os == 'Linux'
+        run: pnpm playwright test
+
+      - name: Upload Playwright report
+        if: failure() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.os }}
+          path: |
+            playwright-report/
+            .sisyphus/evidence/task-9-*.png
+            .sisyphus/evidence/task-9-*.zip
+          if-no-files-found: ignore
+
+      - name: Upload Playwright traces and screenshots
+        if: failure() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results-${{ matrix.os }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
