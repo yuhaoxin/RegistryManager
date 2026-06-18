@@ -1,0 +1,32 @@
+services:
+  registry:
+    image: registry:2
+    ports:
+      - "5001:5000"
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    volumes:
+      - registry-test-data:/var/lib/registry
+
+  # Optional auth fixture for later tests:
+  # 1. Generate credentials in a local, untracked fixture directory:
+  #    mkdir -p .sisyphus/fixtures/registry-auth
+  #    docker run --rm --entrypoint htpasswd httpd:2 -Bbn testuser testpass > .sisyphus/fixtures/registry-auth/htpasswd
+  # 2. Start with: docker compose -f docker-compose.test.yml --profile auth up -d registry-auth
+  registry-auth:
+    image: registry:2
+    profiles: ["auth"]
+    ports:
+      - "5002:5000"
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: Registry Realm
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+    volumes:
+      - registry-auth-test-data:/var/lib/registry
+      - ./.sisyphus/fixtures/registry-auth:/auth:ro
+
+volumes:
+  registry-test-data:
+  registry-auth-test-data:
