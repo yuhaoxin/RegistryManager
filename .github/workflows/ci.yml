@@ -8,6 +8,8 @@ on:
 
 env:
   CI: true
+  CARGO_NET_RETRY: 10
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
   test:
@@ -38,6 +40,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
 
       # Tauri Linux builds require WebKitGTK, GTK, AppIndicator, librsvg, and patchelf.
       # Keep this explicit so Ubuntu failures point to desktop runtime prerequisites.
@@ -94,6 +101,11 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
 
       - name: Allow required pnpm build dependencies
         run: pnpm config set onlyBuiltDependencies esbuild
