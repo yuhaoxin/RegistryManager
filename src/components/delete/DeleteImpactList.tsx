@@ -1,6 +1,25 @@
-import type { DeleteImpact } from "../../types";
+import type { DeleteImpact, RepositoryDeleteImpact } from "../../types";
 
-export function DeleteImpactList({ impact }: { impact: DeleteImpact }) {
+function isRepositoryImpact(impact: DeleteImpact | RepositoryDeleteImpact): impact is RepositoryDeleteImpact {
+  return "totalTags" in impact;
+}
+
+export function DeleteImpactList({ impact }: { impact: DeleteImpact | RepositoryDeleteImpact }) {
+  if (isRepositoryImpact(impact)) {
+    return (
+      <div className="gc-section" data-testid="delete-impact-list">
+        <div className="gc-section-title">Delete impact</div>
+        <ul className="preflight-list">
+          <li className="preflight-item"><span>Repository</span><span className="font-mono">{impact.repository}</span></li>
+          <li className="preflight-item"><span>Total tags</span><span>{impact.totalTags}</span></li>
+          <li className="preflight-item"><span>Unique digests</span><span>{impact.uniqueDigests}</span></li>
+          <li className="preflight-item"><span>Affected tags</span><span>{impact.affectedTags.length ? impact.affectedTags.join(", ") : "No cached tag mapping"}</span></li>
+          <li className="preflight-item warn"><span>Partial-failure warning</span><span>Some manifests may fail to delete. Successful deletions still require server-side GC before storage is reclaimed.</span></li>
+        </ul>
+      </div>
+    );
+  }
+
   return (
     <div className="gc-section" data-testid="delete-impact-list">
       <div className="gc-section-title">Delete impact</div>
