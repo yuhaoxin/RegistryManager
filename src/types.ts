@@ -6,56 +6,15 @@ export interface DockerStatus {
   error?: string;
 }
 
-export interface RegistryContainer {
-  id: string;
-  name: string;
-  image: string;
-  status: "running" | "paused" | "exited" | "restarting" | string;
-  ports: string[];
-  createdAt: string;
-  registryUrl?: string;
-  mounts?: ContainerMount[];
-  healthStatus?: string;
-}
-
-export interface RegistryContainerSummary {
-  id: string;
-  name: string;
-  image: string;
-  registryUrl?: string;
-  ports: PortBinding[];
-  mounts: ContainerMount[];
-  state?: string;
-  env: string[];
-  restartPolicy?: string;
-  healthStatus?: string;
-}
-
-export interface PortBinding {
-  containerPort: number;
-  hostIp?: string;
-  hostPort?: number;
-  protocol: string;
-}
-
-export interface ContainerMount {
-  source?: string;
-  destination?: string;
-  mode?: string;
-  mountType?: string;
-}
-
 export interface RegistryProfile {
   id: string;
-  containerId: string;
-  containerName: string;
-  image: string;
+  name: string;
   registryUrl: string;
-  portMapping: string;
-  configPath?: string;
-  storageMounts: string;
-  selectedAt: string;
-  lastHealthCheckAt?: string;
+  credentialRef?: string | null;
+  containerId?: string | null;
+  containerName?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface RegistryHealth {
@@ -174,9 +133,45 @@ export interface DeleteImpact {
   warning: string;
 }
 
+export interface RepositoryDeleteImpact {
+  repository: string;
+  totalTags: number;
+  uniqueDigests: number;
+  affectedTags: string[];
+  warning: string;
+}
+
+
 export interface DeleteResult {
   digest: string;
   status: string;
+  pendingGc: boolean;
+}
+
+export interface DeleteRepositoryTagResult {
+  tag: string;
+  digest?: string;
+  status: string;
+  error?: string;
+}
+
+export interface DeleteRepositoryDigestResult {
+  digest: string;
+  tags: string[];
+  status: string;
+  pendingGc: boolean;
+  error?: string;
+}
+
+export interface DeleteRepositoryResult {
+  repository: string;
+  status: string;
+  totalTags: number;
+  totalDigests: number;
+  deletedDigests: string[];
+  failedDigests: DeleteRepositoryDigestResult[];
+  tagResults: DeleteRepositoryTagResult[];
+  digestResults: DeleteRepositoryDigestResult[];
   pendingGc: boolean;
 }
 
