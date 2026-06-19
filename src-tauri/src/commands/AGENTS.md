@@ -7,7 +7,7 @@ Tauri IPC surface: every `#[tauri::command]` in this directory is callable from 
 ## STRUCTURE
 
 - `mod.rs` — `AppState`, `AppError`, and command module exports.
-- `docker.rs` — `get_docker_status`, `discover_registry_containers`.
+- `docker.rs` — `get_docker_status`.
 - `registry.rs` — profile selection, credentials, health, catalog/tags/manifest reads, refresh: `select_registry_profile`, `set_registry_credentials`, `clear_registry_credentials`, `get_selected_registry_profile`, `check_registry_health`, `list_catalog`, `list_tags`, `get_manifest`, `refresh_registry`, `cancel_refresh`.
 - `delete.rs` — `get_delete_impact`, `delete_manifest`.
 - `gc.rs` — `run_local_gc`.
@@ -18,7 +18,7 @@ Tauri IPC surface: every `#[tauri::command]` in this directory is callable from 
 
 | Category | File |
 |---|---|
-| Docker discovery/status | `docker.rs` |
+| Docker status | `docker.rs` |
 | Registry profile & browsing | `registry.rs` |
 | Manifest deletion | `delete.rs` |
 | Local garbage collection | `gc.rs` |
