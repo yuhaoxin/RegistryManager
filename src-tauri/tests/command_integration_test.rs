@@ -1,52 +1,32 @@
 use chrono::Utc;
-use registry_manager_lib::commands::docker::{discover_registry_containers, get_docker_status};
 use registry_manager_lib::registry::RegistryClient;
 use registry_manager_lib::store::{
     connect_database, get_selected_registry_profile, list_manifest_cache, list_repository_cache,
     save_registry_profile, upsert_manifest_cache, upsert_repository_cache, ManifestCache,
     RegistryProfile, RepositoryCache,
 };
+use std::io::{Read, Write};
+use std::net::TcpListener;
+use std::thread;
 use uuid::Uuid;
 
-const USER_REGISTRY_URL: &str = "http://localhost:5000";
-
 #[tokio::test]
-async fn commands_discover_existing_localhost_5000_registry() {
-    let status = get_docker_status()
-        .await
-        .expect("docker status command should not fail");
-    assert!(
-        status.reachable,
-        "Docker daemon should be reachable: {status:?}"
-    );
-
-    let containers = discover_registry_containers()
-        .await
-        .expect("registry discovery command should succeed");
-    assert!(
-        containers
-            .iter()
-            .any(|container| container.registry_url.as_deref() == Some(USER_REGISTRY_URL)),
-        "expected existing user registry on localhost:5000, got {containers:?}"
-    );
-}
-
-#[tokio::test]
-async fn registry_profile_and_cache_operations_round_trip_for_localhost_5000() {
+async fn registry_profile_and_cache_operations_round_trip_with_mock_registry() {
+    let (registry_url, handle) = spawn_ping_registry_mock();
     let pool = connect_database(std::path::Path::new(":memory:"))
         .await
         .expect("in-memory database should migrate");
+    let now = Utc::now();
     let profile = RegistryProfile {
         id: Uuid::new_v4(),
-        container_id: "f8912fd523f0".to_string(),
-        container_name: "registry".to_string(),
-        image: "registry:2".to_string(),
-        registry_url: USER_REGISTRY_URL.to_string(),
-        port_mapping: "5000:5000".to_string(),
+        name: "registry".to_string(),
+        registry_url: registry_url.clone(),
+        credential_ref: None,
+        created_at: now,
+        updated_at: now,
+        container_id: Some("f8912fd523f0".to_string()),
+        container_name: Some("registry".to_string()),
         config_path: None,
-        storage_mounts: "[]".to_string(),
-        selected_at: Utc::now(),
-        last_health_check_at: None,
     };
 
     save_registry_profile(&pool, &profile)
@@ -58,14 +38,16 @@ async fn registry_profile_and_cache_operations_round_trip_for_localhost_5000() {
             .expect("selected profile should load")
             .expect("selected profile should exist")
             .registry_url,
-        USER_REGISTRY_URL
+        registry_url
     );
 
-    let client = RegistryClient::new(USER_REGISTRY_URL.to_string());
+    let client = RegistryClient::new(profile.registry_url.clone());
     client
         .ping()
         .await
-        .expect("existing localhost:5000 registry should respond to /v2/");
+        .expect("mock registry should respond to /v2/");
+    let request = handle.join().expect("mock registry thread should finish");
+    assert!(request.starts_with("GET /v2/ HTTP/1.1"), "got {request}");
 
     upsert_repository_cache(
         &pool,
@@ -110,4 +92,27 @@ async fn registry_profile_and_cache_operations_round_trip_for_localhost_5000() {
             .len(),
         1
     );
+}
+
+fn spawn_ping_registry_mock() -> (String, thread::JoinHandle<String>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("mock registry should bind");
+    let base_url = format!("http://{}", listener.local_addr().expect("mock address"));
+
+    let handle = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("mock request should connect");
+        let mut request_buffer = [0_u8; 2048];
+        let bytes_read = stream
+            .read(&mut request_buffer)
+            .expect("mock request should read");
+        let request = String::from_utf8_lossy(&request_buffer[..bytes_read]).to_string();
+
+        let response = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+        stream
+            .write_all(response.as_bytes())
+            .expect("mock response should write");
+
+        request
+    });
+
+    (base_url, handle)
 }
