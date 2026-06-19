@@ -34,6 +34,7 @@ export function DashboardLayout({
   const resolvedTags = tags ?? registry?.tags ?? [];
   const resolvedManifest = manifest ?? registry?.manifest;
   const resolvedActivity = recentActivity ?? [];
+  const selectedProfileId = registry?.selectedProfile?.id;
   const selectedRegistryUrl = registry?.selectedProfile?.registryUrl;
   const canRunLocalGc = selectedRegistryUrl ? isLocalRegistryUrl(selectedRegistryUrl) : false;
 
@@ -47,9 +48,14 @@ export function DashboardLayout({
   };
 
   useEffect(() => {
+    if (selectedProfileId !== undefined) {
+      setSelectedRepo(undefined);
+      setDrawerOpen(false);
+      return;
+    }
     setSelectedRepo(undefined);
     setDrawerOpen(false);
-  }, [registry?.selectedProfile?.id]);
+  }, [selectedProfileId]);
 
   const handleRepoClick = (repo: Repository) => {
     setSelectedRepo(repo.name);
@@ -84,6 +90,18 @@ export function DashboardLayout({
 
   const handleProfileDelete = async (profileId: string) => {
     await registry?.deleteProfile(profileId);
+  };
+
+  const refreshCatalogAndTags = async (repository = selectedRepo ?? registry?.selectedRepository) => {
+    await registry?.refresh();
+    if (repository) {
+      await registry?.selectRepository(repository);
+    }
+  };
+
+  const handleStatusRefresh = async () => {
+    await registry?.refreshHealth();
+    await refreshCatalogAndTags();
   };
 
   const hasSelection = Boolean(registry?.selectedProfile);
@@ -138,7 +156,7 @@ export function DashboardLayout({
             registryUrl={registry?.selectedProfile?.registryUrl}
             health={registry?.health}
             disabled={registry?.loading}
-            onRefresh={registry?.refreshHealth}
+            onRefresh={handleStatusRefresh}
           />
           <RecentActivityCard events={resolvedActivity} />
         </section>
@@ -192,7 +210,7 @@ onLoadMore={() => void registry?.loadCatalog(registry.nextCatalogCursor)}
             manifest={resolvedManifest}
             profileId={registry?.selectedProfile?.id}
             onClose={() => setDrawerOpen(false)}
-            onDeleted={() => void registry?.refresh()}
+            onDeleted={() => void refreshCatalogAndTags()}
             onAuditEventRecorded={refreshAuditLog}
           />
     </div>

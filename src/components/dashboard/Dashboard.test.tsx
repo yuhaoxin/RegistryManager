@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { RegistryContext, type RegistryContextValue } from "../../context/RegistryContext";
 import { DashboardLayout } from "./DashboardLayout";
 
@@ -8,6 +8,8 @@ const mockRepositories = [
   { name: "alpine", tagCount: 3, size: "12.4 MB", lastUpdated: "1 hour ago" },
   { name: "nginx", tagCount: 2, size: "67.1 MB", lastUpdated: "3 hours ago" },
 ];
+
+const CATALOG_KEY = "rm-mock-catalog";
 
 function renderWithContext(ui: React.ReactNode, contextValue?: Partial<RegistryContextValue>) {
   const value: RegistryContextValue = {
@@ -35,6 +37,10 @@ function renderWithContext(ui: React.ReactNode, contextValue?: Partial<RegistryC
 }
 
 describe("Dashboard", () => {
+  afterEach(() => {
+    localStorage.removeItem(CATALOG_KEY);
+  });
+
   it("renders all main cards", () => {
     renderWithContext(<DashboardLayout repositories={mockRepositories} recentActivity={[]} />);
 
@@ -51,19 +57,26 @@ describe("Dashboard", () => {
     expect(screen.getByTestId("rm-docker-unavailable-empty")).toHaveTextContent(/未选择 Registry/);
   });
 
-  it("renders a manual registry health refresh button", async () => {
+  it("refreshes health, repositories, and current tags from the status button", async () => {
     const user = userEvent.setup();
     const refreshHealth = vi.fn().mockResolvedValue(undefined);
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const selectRepository = vi.fn().mockResolvedValue(undefined);
     renderWithContext(<DashboardLayout recentActivity={[]} />, {
       selectedProfile: { id: "p1", name: "Local", registryUrl: "http://localhost:5000", createdAt: "", updatedAt: "" },
+      selectedRepository: "alpine",
       health: { reachable: true, status: "ok", message: "/v2/ 响应成功。", checkedAt: "2026-06-19T10:00:00Z" },
       refreshHealth,
+      refresh,
+      selectRepository,
     });
 
     expect(screen.getByTestId("rm-registry-health-card")).toHaveTextContent("/v2/ 响应成功。");
     await user.click(screen.getByTestId("rm-refresh-health-button"));
 
     expect(refreshHealth).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(selectRepository).toHaveBeenCalledWith("alpine");
   });
 
   it("shows local GC for loopback registry profiles without requiring a linked container", () => {
@@ -115,6 +128,45 @@ describe("Dashboard", () => {
 
     expect(screen.getByTestId("rm-manifest-drawer")).toBeVisible();
     expect(screen.getByText(/清单详情/)).toBeInTheDocument();
+  });
+
+  it("closes the delete tag dialog and reloads tags after a successful delete", async () => {
+    localStorage.setItem(CATALOG_KEY, "true");
+    const user = userEvent.setup();
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    const selectRepository = vi.fn().mockResolvedValue(undefined);
+
+    renderWithContext(
+      <DashboardLayout
+        repositories={[{ name: "alpine", tagCount: 1 }]}
+        tags={[{ name: "latest", digest: "sha256:abc123def4567890", size: "—", created: "—" }]}
+        manifest={{
+          digest: "sha256:abc123def4567890",
+          mediaType: "application/vnd.docker.distribution.manifest.v2+json",
+          size: 512,
+          rawJson: "{}",
+        }}
+        recentActivity={[]}
+      />,
+      {
+        selectedProfile: { id: "p1", name: "Local", registryUrl: "http://localhost:5000", createdAt: "", updatedAt: "" },
+        selectedRepository: "alpine",
+        refresh,
+        selectRepository,
+      },
+    );
+
+    await user.click(screen.getByText("latest"));
+    await user.click(screen.getByTestId("delete-manifest-button"));
+    await screen.findByTestId("delete-impact-list");
+    await user.click(screen.getByRole("button", { name: /确认/ }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("delete-confirm-dialog")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("rm-manifest-drawer")).not.toBeInTheDocument();
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(selectRepository).toHaveBeenCalledWith("alpine");
+    });
   });
 
   it("does not render hardcoded default repositories when no registry is selected", () => {

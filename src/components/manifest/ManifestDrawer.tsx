@@ -124,6 +124,8 @@ export function ManifestDrawer({ open, repositoryName, manifest, profileId, onCl
         onClose={() => setDeleteOpen(false)}
         onAuditEventRecorded={onAuditEventRecorded}
         onDeleted={() => {
+          setDeleteOpen(false);
+          onClose();
           onDeleted?.();
         }}
       />
