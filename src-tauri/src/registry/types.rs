@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 pub const DOCKER_SCHEMA2_MANIFEST: &str = "application/vnd.docker.distribution.manifest.v2+json";
 pub const DOCKER_MANIFEST_LIST: &str = "application/vnd.docker.distribution.manifest.list.v2+json";
@@ -13,8 +13,21 @@ pub struct Catalog {
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct TagsList {
     pub name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_empty_tags")]
     pub tags: Vec<String>,
+}
+
+fn null_as_empty_tags<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(Option::<Vec<String>>::deserialize(deserializer)?.unwrap_or_default())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TagDigest {
+    pub tag: String,
+    pub digest: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
