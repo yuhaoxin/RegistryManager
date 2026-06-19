@@ -11,7 +11,7 @@ export interface GcPreflightListProps {
 export function GcPreflightList({ items }: GcPreflightListProps) {
   return (
     <div data-testid="rm-gc-preflight-list">
-      <div className="gc-section-title">Preflight checks</div>
+      <div className="gc-section-title">预检项</div>
       <ul className="preflight-list" role="list">
         {items.map((item) => (
           <li key={item.name} className={`preflight-item ${item.status}`}>

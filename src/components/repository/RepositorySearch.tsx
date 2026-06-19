@@ -4,7 +4,7 @@ export interface RepositorySearchProps {
   placeholder?: string;
 }
 
-export function RepositorySearch({ value, onChange, placeholder = "Search repositories…" }: RepositorySearchProps) {
+export function RepositorySearch({ value, onChange, placeholder = "搜索仓库…" }: RepositorySearchProps) {
   return (
     <div className="search-bar" data-testid="rm-repository-search">
       <span className="search-bar-icon" aria-hidden="true">🔍</span>
@@ -14,7 +14,7 @@ export function RepositorySearch({ value, onChange, placeholder = "Search reposi
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        aria-label="Search repositories"
+        aria-label="搜索仓库"
       />
     </div>
   );

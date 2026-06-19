@@ -54,9 +54,9 @@ impl CredentialStore for SystemKeyring {
 
 #[derive(Debug, Error)]
 pub enum CredentialError {
-    #[error("credential store error: {0}")]
+    #[error("凭据存储错误：{0}")]
     Store(#[from] keyring::Error),
-    #[error("credential payload parse failed: {0}")]
+    #[error("凭据载荷解析失败：{0}")]
     Parse(#[from] serde_json::Error),
 }
 

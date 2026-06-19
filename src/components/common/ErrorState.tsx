@@ -5,7 +5,7 @@ export interface ErrorStateProps {
   testId?: string;
 }
 
-export function ErrorState({ title = "Something went wrong", message, onRetry, testId }: ErrorStateProps) {
+export function ErrorState({ title = "出现问题", message, onRetry, testId }: ErrorStateProps) {
   return (
     <div className="state-center" data-testid={testId} role="alert">
       <div className="state-icon" aria-hidden="true">⚠️</div>
@@ -13,7 +13,7 @@ export function ErrorState({ title = "Something went wrong", message, onRetry, t
       <div className="state-description">{message}</div>
       {onRetry ? (
         <button type="button" className="btn btn-secondary" onClick={onRetry}>
-          Retry
+          重试
         </button>
       ) : null}
     </div>

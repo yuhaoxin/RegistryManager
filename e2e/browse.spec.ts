@@ -12,7 +12,7 @@ test("adds manual localhost registry profile and browses manifest", async ({ pag
   await expect(page.getByTestId("rm-repository-browser")).toBeVisible();
   await expect(page.getByTestId("rm-repository-card").first()).toBeVisible();
 
-  await page.getByRole("button", { name: /Open alpine/i }).click();
+  await page.getByRole("button", { name: /打开 alpine/ }).click();
   await expect(page.getByTestId("rm-tag-browser")).toContainText("latest");
   await page.getByText("latest").click();
   await expect(page.getByTestId("rm-manifest-drawer")).toBeVisible();

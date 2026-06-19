@@ -13,20 +13,20 @@ test("safe manifest delete uses simple confirm dialog", async ({ page }) => {
     localStorage.removeItem("rm-audit-events");
   });
 
-  await page.getByRole("button", { name: /Open alpine/i }).click();
+  await page.getByRole("button", { name: /打开 alpine/ }).click();
   await page.getByText("latest").click();
   await expect(page.getByTestId("rm-manifest-drawer")).toBeVisible();
 
   await page.getByTestId("delete-manifest-button").click();
   await expect(page.getByTestId("delete-confirm-dialog")).toBeVisible();
-  await expect(page.getByTestId("delete-confirm-dialog")).toContainText("Delete this image tag from alpine?");
-  await expect(page.getByTestId("delete-confirm-dialog")).toContainText("Storage is reclaimed only after registry GC");
-  await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
-  await page.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByTestId("delete-confirm-dialog")).toContainText("从 alpine 删除此镜像标签？");
+  await expect(page.getByTestId("delete-confirm-dialog")).toContainText("只有在 Registry GC 后才会回收存储空间");
+  await expect(page.getByRole("button", { name: "取消" })).toBeVisible();
+  await page.getByRole("button", { name: "确认" }).click();
 
-  await expect(page.getByTestId("delete-confirm-dialog")).toContainText("pending_gc");
-  await expect(page.getByTestId("rm-audit-log-table")).toContainText("delete_manifest");
-  await expect(page.getByTestId("rm-audit-log-table")).toContainText("pending_gc");
+  await expect(page.getByTestId("delete-confirm-dialog")).toContainText("等待 GC");
+  await expect(page.getByTestId("rm-audit-log-table")).toContainText("删除清单");
+  await expect(page.getByTestId("rm-audit-log-table")).toContainText("等待 GC");
   await page.screenshot({ path: path.join(evidenceDir, "task-8-safe-delete.png"), fullPage: true });
   await page.screenshot({ path: path.join(evidenceDir, "task-9-e2e-safe-delete.png"), fullPage: true });
 });

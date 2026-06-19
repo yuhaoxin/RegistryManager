@@ -2,15 +2,15 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum DockerError {
-    #[error("Docker daemon is unavailable: {0}")]
+    #[error("Docker 守护进程不可用：{0}")]
     DockerUnavailable(String),
-    #[error("remote Docker contexts are not supported: {0}")]
+    #[error("不支持远程 Docker 上下文：{0}")]
     RemoteContext(String),
-    #[error("failed to inspect container {container_id}: {source}")]
+    #[error("检查容器 {container_id} 失败：{source}")]
     InspectFailed {
         container_id: String,
         source: bollard::errors::Error,
     },
-    #[error("container not found: {0}")]
+    #[error("未找到容器：{0}")]
     NotFound(String),
 }

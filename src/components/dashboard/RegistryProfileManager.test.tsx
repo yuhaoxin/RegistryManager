@@ -37,7 +37,7 @@ describe("RegistryProfileManager", () => {
   it("keeps action buttons outside profile option content", () => {
     renderManager();
 
-    expect(screen.queryByRole("listbox", { name: "Registry profiles" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("listbox", { name: "Registry 配置" })).not.toBeInTheDocument();
     expect(screen.queryAllByRole("option")).toHaveLength(0);
     expect(screen.getAllByTestId("rm-profile-edit-button")).toHaveLength(2);
     expect(screen.getAllByTestId("rm-profile-delete-button")).toHaveLength(2);
@@ -98,7 +98,7 @@ describe("RegistryProfileManager", () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockRejectedValue({
       code: "duplicate_registry_url",
-      message: "A registry profile with this URL already exists.",
+      message: "已存在使用此 URL 的 Registry 配置。",
     });
     renderManager({ profiles: [], onCreate });
 
@@ -108,7 +108,7 @@ describe("RegistryProfileManager", () => {
     await user.click(screen.getByTestId("rm-profile-save-button"));
 
     const error = await screen.findByTestId("rm-profile-error");
-    expect(error).toHaveTextContent("A registry profile with this URL already exists.");
+    expect(error).toHaveTextContent("已存在使用此 URL 的 Registry 配置。");
     expect(screen.getByTestId("rm-profile-form")).toBeInTheDocument();
   });
 
@@ -116,7 +116,7 @@ describe("RegistryProfileManager", () => {
     const user = userEvent.setup();
     const onUpdate = vi.fn().mockRejectedValue({
       code: "duplicate_registry_url",
-      message: "A registry profile with this URL already exists.",
+      message: "已存在使用此 URL 的 Registry 配置。",
     });
     renderManager({ onUpdate });
 
@@ -127,7 +127,7 @@ describe("RegistryProfileManager", () => {
     await user.click(screen.getByTestId("rm-profile-save-button"));
 
     const error = await screen.findByTestId("rm-profile-error");
-    expect(error).toHaveTextContent("A registry profile with this URL already exists.");
+    expect(error).toHaveTextContent("已存在使用此 URL 的 Registry 配置。");
     expect(screen.getByTestId("rm-profile-form")).toBeInTheDocument();
   });
 
@@ -145,7 +145,7 @@ describe("RegistryProfileManager", () => {
 
   it("displays an error when deleting a profile fails", async () => {
     const user = userEvent.setup();
-    const onDelete = vi.fn().mockRejectedValue({ message: "Delete failed" });
+    const onDelete = vi.fn().mockRejectedValue({ message: "删除失败" });
     renderManager({ onDelete });
 
     const deleteButtons = screen.getAllByTestId("rm-profile-delete-button");
@@ -153,6 +153,6 @@ describe("RegistryProfileManager", () => {
     await user.click(screen.getByTestId("rm-profile-delete-confirm-button"));
 
     const error = await screen.findByTestId("rm-profile-delete-error");
-    expect(error).toHaveTextContent("Delete failed");
+    expect(error).toHaveTextContent("删除失败");
   });
 });

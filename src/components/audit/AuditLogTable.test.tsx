@@ -34,7 +34,7 @@ describe("AuditLogTable", () => {
 
     await waitFor(() => expect(runTauriCommand).toHaveBeenCalledTimes(1));
     expect(runTauriCommand).toHaveBeenCalledWith("list_audit_events", { limit: 25, offset: 0 });
-    expect(screen.getByTestId("rm-audit-log-table")).toHaveTextContent("delete_manifest");
+    expect(screen.getByTestId("rm-audit-log-table")).toHaveTextContent("删除清单");
   });
 
   it("refreshes audit events when the manual button is clicked", async () => {
@@ -50,7 +50,7 @@ describe("AuditLogTable", () => {
 
     await waitFor(() => expect(runTauriCommand).toHaveBeenCalledTimes(2));
     expect(runTauriCommand.mock.calls[1]).toEqual(["list_audit_events", { limit: 25, offset: 0 }]);
-    expect(screen.getByTestId("rm-audit-log-table")).toHaveTextContent("gc_completed");
+    expect(screen.getByTestId("rm-audit-log-table")).toHaveTextContent("GC 已完成");
   });
 });
 

@@ -112,7 +112,7 @@ pub async fn get_delete_impact(
         media_type,
         affected_tags,
         is_multi_arch,
-        warning: "Storage may not be released until server-side GC completes.".to_string(),
+        warning: "在服务端 GC 完成前，存储空间可能不会释放。".to_string(),
     })
 }
 
@@ -134,7 +134,7 @@ pub async fn delete_manifest(
     if confirmed_digest_suffix.trim() != expected_suffix {
         return Err(AppError::with_details(
             "delete_confirmation_mismatch",
-            "Digest confirmation does not match the required suffix.",
+            "摘要确认值与所需后缀不匹配。",
             expected_suffix,
         ));
     }
@@ -319,12 +319,9 @@ async fn delete_repository_for_state(
 
 async fn require_profile(state: &AppState, profile_id: &str) -> Result<RegistryProfile, AppError> {
     let id = Uuid::parse_str(profile_id)?;
-    get_registry_profile(&state.pool, id).await?.ok_or_else(|| {
-        AppError::new(
-            "profile_not_found",
-            "Selected registry profile was not found.",
-        )
-    })
+    get_registry_profile(&state.pool, id)
+        .await?
+        .ok_or_else(|| AppError::new("profile_not_found", "未找到所选 Registry 配置。"))
 }
 
 async fn affected_tags(
@@ -484,19 +481,17 @@ fn registry_timeout_error(operation: &str) -> AppError {
 }
 
 fn registry_timeout_message(operation: &str) -> String {
-    format!("Registry request timed out while trying to {operation}.")
+    format!("尝试执行 {operation} 时 Registry 请求超时。")
 }
 
 fn delete_error_message(error: &RegistryError) -> String {
     match error {
-        RegistryError::NotFound => "Manifest digest was not found in the registry.".to_string(),
+        RegistryError::NotFound => "Registry 中未找到清单摘要。".to_string(),
         RegistryError::Unauthorized => {
-            "Registry returned 401; authenticate before deleting this digest.".to_string()
+            "Registry 返回 401；删除此摘要前请先完成身份验证。".to_string()
         }
-        RegistryError::Forbidden => {
-            "Registry returned 403; deletion is forbidden for this digest.".to_string()
-        }
-        _ => format!("Manifest delete failed: {error}"),
+        RegistryError::Forbidden => "Registry 返回 403；禁止删除此摘要。".to_string(),
+        _ => format!("清单删除失败：{error}"),
     }
 }
 
@@ -690,7 +685,7 @@ mod tests {
         assert!(result.tag_results[0]
             .error
             .as_deref()
-            .is_some_and(|message| message.contains("timed out")));
+            .is_some_and(|message| message.contains("超时")));
         assert_eq!(count_requests(&requests, "HEAD", "latest"), 1);
     }
 
@@ -717,7 +712,7 @@ mod tests {
         assert!(result.failed_digests[0]
             .error
             .as_deref()
-            .is_some_and(|message| message.contains("timed out")));
+            .is_some_and(|message| message.contains("超时")));
         assert_eq!(count_requests(&requests, "DELETE", DIGEST_A), 1);
     }
 

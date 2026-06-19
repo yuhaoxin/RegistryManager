@@ -2,22 +2,22 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum RegistryError {
-    #[error("registry request failed: {0}")]
+    #[error("Registry 请求失败：{0}")]
     RequestFailed(#[from] reqwest::Error),
-    #[error("unexpected registry status: {0}")]
+    #[error("非预期 Registry 状态：{0}")]
     UnexpectedStatus(u16),
-    #[error("registry authentication required")]
+    #[error("需要 Registry 身份验证")]
     Unauthorized,
-    #[error("registry operation forbidden")]
+    #[error("Registry 操作被禁止")]
     Forbidden,
-    #[error("invalid registry url")]
+    #[error("Registry URL 无效")]
     InvalidUrl,
-    #[error("unsupported manifest media type: {0}")]
+    #[error("不支持的清单媒体类型：{0}")]
     UnsupportedMediaType(String),
-    #[error("Docker-Content-Digest header not found")]
+    #[error("未找到 Docker-Content-Digest 头")]
     DigestNotFound,
-    #[error("failed to parse registry JSON: {0}")]
+    #[error("解析 Registry JSON 失败：{0}")]
     JsonParse(#[from] serde_json::Error),
-    #[error("registry resource not found")]
+    #[error("未找到 Registry 资源")]
     NotFound,
 }

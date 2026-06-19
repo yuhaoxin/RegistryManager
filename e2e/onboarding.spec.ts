@@ -14,10 +14,10 @@ test("Docker daemon unavailable onboarding explains recovery and disables GC", a
   });
   await page.reload();
 
-  await expect(page.getByTestId("rm-docker-status-card")).toContainText("Unavailable");
-  await expect(page.getByTestId("rm-docker-status-empty")).toContainText(/Docker daemon|Docker Engine|Docker Desktop/i);
-  await expect(page.getByTestId("rm-no-profiles-message")).toContainText("No registry profiles yet");
-  await expect(page.getByRole("button", { name: /^Run GC$/ })).toHaveCount(0);
+  await expect(page.getByTestId("rm-docker-status-card")).toContainText("不可用");
+  await expect(page.getByTestId("rm-docker-status-empty")).toContainText(/Docker 守护进程|Docker Engine|Docker Desktop/);
+  await expect(page.getByTestId("rm-no-profiles-message")).toContainText("还没有 Registry 配置");
+  await expect(page.getByRole("button", { name: /^运行 GC$/ })).toHaveCount(0);
 
   await page.screenshot({ path: path.join(evidenceDir, "task-9-e2e-docker-unavailable.png"), fullPage: true });
 });

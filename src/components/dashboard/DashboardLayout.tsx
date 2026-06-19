@@ -90,26 +90,26 @@ export function DashboardLayout({
 
   return (
     <div className="dashboard-layout">
-      <aside className="sidebar" aria-label="Main navigation">
+      <aside className="sidebar" aria-label="主导航">
         <div className="sidebar-brand">
           <span className="brand-mark" aria-hidden="true">R</span>
-          Registry Manager
+          Registry 管理器
         </div>
         <nav>
           <ul className="sidebar-nav">
             <li>
               <a href="#dashboard" className="nav-item active">
-                🏠 Dashboard
+                🏠 仪表盘
               </a>
             </li>
             <li>
               <a href="#audit" className="nav-item">
-                📜 Audit logs
+                📜 审计日志
               </a>
             </li>
             <li>
               <a href="#settings" className="nav-item">
-                ⚙️ Settings
+                ⚙️ 设置
               </a>
             </li>
           </ul>
@@ -127,11 +127,11 @@ export function DashboardLayout({
 
       <main className="main-content">
         <header className="page-header">
-          <h1>Dashboard</h1>
-          <p>Manage your local Docker Registry V2 from one place.</p>
+          <h1>仪表盘</h1>
+          <p>在一个地方管理本地 Docker Registry V2。</p>
         </header>
 
-        <section className="card-grid" aria-label="Status cards">
+        <section className="card-grid" aria-label="状态卡片">
           <DockerStatusCard status={resolvedDockerStatus} />
           <RegistryHealthCard
             profileName={registry?.selectedProfile?.name}
@@ -147,8 +147,8 @@ export function DashboardLayout({
           <EmptyState
             testId="rm-docker-unavailable-empty"
             icon="🐳"
-            title="No registry selected"
-            description="Select a registry profile from the sidebar, or add a new one to get started."
+            title="未选择 Registry"
+            description="从侧边栏选择一个 Registry 配置，或添加新配置开始使用。"
           />
         ) : (
           <>
@@ -188,7 +188,7 @@ onLoadMore={() => void registry?.loadCatalog(registry.nextCatalogCursor)}
 
       <ManifestDrawer
         open={drawerOpen}
-        repositoryName={selectedRepo ?? "unknown"}
+        repositoryName={selectedRepo ?? "未知"}
             manifest={resolvedManifest}
             profileId={registry?.selectedProfile?.id}
             onClose={() => setDrawerOpen(false)}

@@ -12,8 +12,8 @@ export interface TagBrowserProps {
 export function TagBrowser({ repository, tags, stale, onSelect }: TagBrowserProps) {
   return (
     <div data-testid="rm-tag-browser">
-      {repository ? <div className="card-subtitle mt-2">Tags for {repository}</div> : null}
-      {stale ? <StaleCacheBanner message="Registry is offline. Showing stale cached tags." /> : null}
+      {repository ? <div className="card-subtitle mt-2">{repository} 的标签</div> : null}
+      {stale ? <StaleCacheBanner message="Registry 离线。正在显示已过期的缓存标签。" /> : null}
       <TagTable tags={tags} stale={stale} onSelect={onSelect} />
     </div>
   );

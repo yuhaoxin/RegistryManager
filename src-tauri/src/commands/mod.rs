@@ -76,14 +76,12 @@ impl AppError {
 impl From<DockerError> for AppError {
     fn from(value: DockerError) -> Self {
         match value {
-            DockerError::DockerUnavailable(message) => Self::with_details(
-                "docker_unavailable",
-                "Docker daemon is unavailable.",
-                message,
-            ),
+            DockerError::DockerUnavailable(message) => {
+                Self::with_details("docker_unavailable", "Docker 守护进程不可用。", message)
+            }
             DockerError::RemoteContext(context) => Self::with_details(
                 "remote_docker_context",
-                "Remote Docker contexts are not supported.",
+                "不支持远程 Docker 上下文。",
                 context,
             ),
             DockerError::InspectFailed {
@@ -91,11 +89,11 @@ impl From<DockerError> for AppError {
                 source,
             } => Self::with_details(
                 "docker_inspect_failed",
-                "Failed to inspect registry container.",
+                "检查 Registry 容器失败。",
                 format!("{container_id}: {source}"),
             ),
             DockerError::NotFound(message) => {
-                Self::with_details("container_not_found", "Container was not found.", message)
+                Self::with_details("container_not_found", "未找到容器。", message)
             }
         }
     }
@@ -106,52 +104,46 @@ impl From<RegistryError> for AppError {
         match value {
             RegistryError::RequestFailed(error) => Self::with_details(
                 "registry_unreachable",
-                "Registry API is unreachable.",
+                "无法连接 Registry API。",
                 error.to_string(),
             ),
             RegistryError::UnexpectedStatus(status) => Self::with_details(
                 "registry_api_error",
-                "Registry API returned an unexpected status.",
+                "Registry API 返回了非预期状态。",
                 status.to_string(),
             ),
             RegistryError::Unauthorized => Self::new(
                 "registry_unauthorized",
-                "Registry authentication is required before this manifest can be deleted.",
+                "删除此清单前需要完成 Registry 身份验证。",
             ),
-            RegistryError::Forbidden => Self::new(
-                "registry_forbidden",
-                "Registry denied permission to delete this manifest.",
-            ),
-            RegistryError::InvalidUrl => Self::new("invalid_registry_url", "Invalid registry URL."),
+            RegistryError::Forbidden => {
+                Self::new("registry_forbidden", "Registry 拒绝删除此清单的权限。")
+            }
+            RegistryError::InvalidUrl => Self::new("invalid_registry_url", "Registry URL 无效。"),
             RegistryError::UnsupportedMediaType(media_type) => Self::with_details(
                 "unsupported_manifest_media_type",
-                "Manifest media type is not supported.",
+                "不支持此清单媒体类型。",
                 media_type,
             ),
             RegistryError::DigestNotFound => Self::new(
                 "manifest_digest_missing",
-                "Registry did not return Docker-Content-Digest.",
+                "Registry 未返回 Docker-Content-Digest。",
             ),
             RegistryError::JsonParse(error) => Self::with_details(
                 "registry_json_parse_failed",
-                "Registry response could not be parsed.",
+                "无法解析 Registry 响应。",
                 error.to_string(),
             ),
-            RegistryError::NotFound => Self::new(
-                "registry_resource_not_found",
-                "Registry resource was not found.",
-            ),
+            RegistryError::NotFound => {
+                Self::new("registry_resource_not_found", "未找到 Registry 资源。")
+            }
         }
     }
 }
 
 impl From<StoreError> for AppError {
     fn from(value: StoreError) -> Self {
-        Self::with_details(
-            "store_error",
-            "Local cache operation failed.",
-            value.to_string(),
-        )
+        Self::with_details("store_error", "本地缓存操作失败。", value.to_string())
     }
 }
 
@@ -159,7 +151,7 @@ impl From<CredentialError> for AppError {
     fn from(value: CredentialError) -> Self {
         Self::with_details(
             "credential_store_error",
-            "Registry credentials could not be updated or loaded.",
+            "无法更新或加载 Registry 凭据。",
             value.to_string(),
         )
     }
@@ -169,7 +161,7 @@ impl From<uuid::Error> for AppError {
     fn from(value: uuid::Error) -> Self {
         Self::with_details(
             "invalid_profile_id",
-            "Invalid registry profile id.",
+            "Registry 配置 ID 无效。",
             value.to_string(),
         )
     }

@@ -55,11 +55,11 @@ describe("RepositoryBrowser repository delete", () => {
 
     await user.click(screen.getByTestId("rm-repository-delete-button"));
 
-    expect(await screen.findByText(/confirm repository delete/i)).toBeVisible();
+    expect(await screen.findByText(/确认删除仓库/)).toBeVisible();
     expect(screen.getByTestId("delete-impact-list")).toBeVisible();
-    expect(await screen.findByText(/total tags/i)).toBeVisible();
-    expect(await screen.findByText(/unique digests/i)).toBeVisible();
-    expect(await screen.findByText(/affected tags/i)).toBeVisible();
+    expect(await screen.findByText(/标签总数/)).toBeVisible();
+    expect(await screen.findByText(/唯一摘要数/)).toBeVisible();
+    expect(await screen.findByText(/受影响标签/)).toBeVisible();
   });
 
   it("removes the repository card after a successful delete reduces tag count to zero", async () => {
@@ -77,9 +77,9 @@ describe("RepositoryBrowser repository delete", () => {
     expect(screen.getByTestId("rm-repository-card")).toBeVisible();
 
     await user.click(screen.getByTestId("rm-repository-delete-button"));
-    await screen.findByText(/confirm repository delete/i);
+    await screen.findByText(/确认删除仓库/);
 
-    await user.click(screen.getByRole("button", { name: /delete repository/i }));
+    await user.click(screen.getByRole("button", { name: /删除仓库/ }));
 
     await waitFor(() => {
       expect(screen.queryByTestId("rm-repository-card")).not.toBeInTheDocument();

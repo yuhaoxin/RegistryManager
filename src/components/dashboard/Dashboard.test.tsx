@@ -48,7 +48,7 @@ describe("Dashboard", () => {
     renderWithContext(<DashboardLayout repositories={mockRepositories} recentActivity={[]} />);
 
     expect(screen.getByTestId("rm-docker-unavailable-empty")).toBeVisible();
-    expect(screen.getByTestId("rm-docker-unavailable-empty")).toHaveTextContent(/No registry selected/i);
+    expect(screen.getByTestId("rm-docker-unavailable-empty")).toHaveTextContent(/未选择 Registry/);
   });
 
   it("renders a manual registry health refresh button", async () => {
@@ -56,11 +56,11 @@ describe("Dashboard", () => {
     const refreshHealth = vi.fn().mockResolvedValue(undefined);
     renderWithContext(<DashboardLayout recentActivity={[]} />, {
       selectedProfile: { id: "p1", name: "Local", registryUrl: "http://localhost:5000", createdAt: "", updatedAt: "" },
-      health: { reachable: true, status: "ok", message: "/v2/ responded successfully.", checkedAt: "2026-06-19T10:00:00Z" },
+      health: { reachable: true, status: "ok", message: "/v2/ 响应成功。", checkedAt: "2026-06-19T10:00:00Z" },
       refreshHealth,
     });
 
-    expect(screen.getByTestId("rm-registry-health-card")).toHaveTextContent("/v2/ responded successfully.");
+    expect(screen.getByTestId("rm-registry-health-card")).toHaveTextContent("/v2/ 响应成功。");
     await user.click(screen.getByTestId("rm-refresh-health-button"));
 
     expect(refreshHealth).toHaveBeenCalledTimes(1);
@@ -72,7 +72,7 @@ describe("Dashboard", () => {
     });
 
     expect(screen.getByTestId("rm-local-gc-executor")).toBeVisible();
-    expect(screen.getByRole("button", { name: /^Run GC$/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: /^运行 GC$/ })).toBeVisible();
   });
 
   it("hides local GC for remote registry profiles", () => {
@@ -81,7 +81,7 @@ describe("Dashboard", () => {
     });
 
     expect(screen.queryByTestId("rm-local-gc-executor")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^Run GC$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^运行 GC$/ })).not.toBeInTheDocument();
   });
 
   it("filters repositories by search input", async () => {
@@ -114,7 +114,7 @@ describe("Dashboard", () => {
     await user.click(screen.getByText("latest"));
 
     expect(screen.getByTestId("rm-manifest-drawer")).toBeVisible();
-    expect(screen.getByText(/Manifest detail/i)).toBeInTheDocument();
+    expect(screen.getByText(/清单详情/)).toBeInTheDocument();
   });
 
   it("does not render hardcoded default repositories when no registry is selected", () => {
@@ -133,7 +133,7 @@ describe("Dashboard", () => {
   it("does not render hardcoded default activity when no registry is selected", () => {
     renderWithContext(<DashboardLayout recentActivity={[]} />);
     expect(screen.queryByText("Manifest deleted")).not.toBeInTheDocument();
-    expect(screen.getByText("No recent activity.")).toBeInTheDocument();
+    expect(screen.getByText("暂无最近活动。")).toBeInTheDocument();
   });
 
   it("labels stale cached repositories and tags as offline data", () => {
@@ -146,7 +146,7 @@ describe("Dashboard", () => {
     });
 
     expect(screen.getAllByTestId("stale-cache-banner")).toHaveLength(2);
-    expect(screen.getByTestId("rm-repository-stale-marker")).toHaveTextContent(/stale cache/i);
-    expect(screen.getByTestId("rm-tag-stale-marker")).toHaveTextContent(/stale cache/i);
+    expect(screen.getByTestId("rm-repository-stale-marker")).toHaveTextContent(/缓存已过期/);
+    expect(screen.getByTestId("rm-tag-stale-marker")).toHaveTextContent(/缓存已过期/);
   });
 });

@@ -60,7 +60,7 @@ export function DeleteConfirmDialog(props: DeleteConfirmDialogProps) {
       mediaType: "unknown",
       affectedTags: [reference],
       isMultiArch: false,
-      warning: "Storage may not be released until server-side GC completes.",
+      warning: "在服务端 GC 完成前，存储空间可能不会释放。",
     };
     if (!profileId) {
       setImpact(fallback);
@@ -82,7 +82,7 @@ export function DeleteConfirmDialog(props: DeleteConfirmDialogProps) {
       totalTags: tagCount,
       uniqueDigests: tagCount,
       affectedTags: [],
-      warning: "Storage may not be released until server-side GC completes.",
+      warning: "在服务端 GC 完成前，存储空间可能不会释放。",
     };
     if (!profileId) {
       setImpact(fallback);
@@ -99,7 +99,7 @@ export function DeleteConfirmDialog(props: DeleteConfirmDialogProps) {
   if (!open) return null;
 
   const canDelete = Boolean(impact && !loading);
-  const confirmLabel = mode === "repository" ? "Delete repository" : "Confirm";
+  const confirmLabel = mode === "repository" ? "删除仓库" : "确认";
 
   async function submit() {
     if (!impact || !canDelete) return;
@@ -115,7 +115,7 @@ export function DeleteConfirmDialog(props: DeleteConfirmDialogProps) {
           confirmedDigestSuffix: requiredSuffix,
         });
         onAuditEventRecorded?.();
-        setMessage(`Delete recorded as ${result.status}; storage may not be released until server-side GC.`);
+        setMessage(`删除已记录为 ${statusLabel(result.status)}；在服务端 GC 完成前，存储空间可能不会释放。`);
         onDeleted?.(result);
       } else {
         if (onDeleteRepository) {
@@ -124,7 +124,7 @@ export function DeleteConfirmDialog(props: DeleteConfirmDialogProps) {
           await runTauriCommand<DeleteRepositoryResult>("delete_repository", { profileId, repository });
         }
         onAuditEventRecorded?.();
-        setMessage("Repository delete recorded; storage may not be released until server-side GC.");
+        setMessage("仓库删除已记录；在服务端 GC 完成前，存储空间可能不会释放。");
         onDeleted?.();
       }
     } catch (error) {
@@ -139,33 +139,33 @@ export function DeleteConfirmDialog(props: DeleteConfirmDialogProps) {
     <div role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title" data-testid="delete-confirm-dialog" style={{ position: "fixed", inset: 0, zIndex: 70 }}>
       <div className="drawer-backdrop" onClick={onClose} aria-hidden="true" />
       <div className="card" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 70, width: "min(680px, 92vw)" }}>
-        <div className="card-header"><div className="card-title" id="delete-confirm-title">{mode === "repository" ? "⚠️ Confirm repository delete" : "⚠️ Confirm delete"}</div></div>
+        <div className="card-header"><div className="card-title" id="delete-confirm-title">{mode === "repository" ? "⚠️ 确认删除仓库" : "⚠️ 确认删除"}</div></div>
         <div className="card-body">
           {mode === "repository" ? (
             <>
               <p>
-                Delete all tags and manifests in <strong>{repository}</strong>?
+                删除 <strong>{repository}</strong> 中的所有标签和清单？
               </p>
               <p className="text-secondary">
-                This removes every resolved manifest digest in the repository. Storage is reclaimed only after registry GC.
+                这会移除仓库中所有已解析的清单摘要。只有在 Registry GC 后才会回收存储空间。
               </p>
             </>
           ) : (
             <>
               <p>
-                Delete this image tag from <strong>{repository}</strong>?
+                从 <strong>{repository}</strong> 删除此镜像标签？
               </p>
               <p className="text-secondary">
-                This removes the resolved manifest digest. Storage is reclaimed only after registry GC.
+                这会移除已解析的清单摘要。只有在 Registry GC 后才会回收存储空间。
               </p>
             </>
           )}
-          {!impact ? <div role="status">Resolving impact…</div> : <DeleteImpactList impact={impact} />}
-          {message ? <div role="status" className={message.toLowerCase().includes("failed") || message.includes("not found") ? "preflight-item error" : "preflight-item ok"}>{message}</div> : null}
+          {!impact ? <div role="status">正在解析影响范围…</div> : <DeleteImpactList impact={impact} />}
+          {message ? <div role="status" className={message.toLowerCase().includes("failed") || message.includes("not found") || message.includes("失败") || message.includes("未找到") ? "preflight-item error" : "preflight-item ok"}>{message}</div> : null}
         </div>
         <div className="flex gap-2 justify-between">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-danger" disabled={!canDelete} onClick={submit}>{loading ? "Deleting…" : confirmLabel}</button>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>取消</button>
+          <button type="button" className="btn btn-danger" disabled={!canDelete} onClick={submit}>{loading ? "正在删除…" : confirmLabel}</button>
         </div>
       </div>
     </div>
@@ -193,8 +193,23 @@ async function fetchRepositoryDeleteImpact(profileId: string, repository: string
     totalTags: tags.length,
     uniqueDigests: digests.size || affectedTags.length,
     affectedTags,
-    warning: "Storage may not be released until server-side GC completes.",
+    warning: "在服务端 GC 完成前，存储空间可能不会释放。",
   };
+}
+
+function statusLabel(status: string) {
+  switch (status) {
+    case "pending_gc":
+      return "等待 GC";
+    case "success":
+      return "成功";
+    case "failure":
+      return "失败";
+    case "partial_failure":
+      return "部分失败";
+    default:
+      return status;
+  }
 }
 
 function errorMessage(error: unknown) {

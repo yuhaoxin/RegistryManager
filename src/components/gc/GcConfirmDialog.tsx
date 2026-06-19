@@ -25,25 +25,23 @@ export function GcConfirmDialog({ open, containerName, onConfirm, onCancel }: Gc
         }}
       >
         <div className="card-header">
-          <div className="card-title" id="gc-confirm-title">⚠️ Run garbage collection?</div>
+          <div className="card-title" id="gc-confirm-title">⚠️ 运行垃圾回收？</div>
         </div>
         <div className="card-body">
           <p className="text-secondary">
-            This will stop the selected registry container
-            <strong> {containerName}</strong>, run a temporary GC container with the original
-            storage mounts, then restart the registry. Make sure no pushes are in progress.
+            这会停止所选 Registry 容器
+            <strong> {containerName}</strong>，使用原始存储挂载运行临时 GC 容器，随后重启 Registry。请确保当前没有推送正在进行。
           </p>
           <p className="preflight-item warn">
-            Downtime warning: the original local registry is stopped before GC. This is destructive
-            local maintenance and must not run while the registry is accepting writes.
+            停机警告：原本地 Registry 会在 GC 前停止。这是破坏性的本地维护操作，不得在 Registry 接受写入时运行。
           </p>
           <p className="text-secondary" style={{ fontSize: "var(--text-sm)" }}>
-            Only untagged blobs will be removed. This action is recorded in the audit log.
+            只会移除未打标签的 blob。此操作会记录到审计日志。
           </p>
         </div>
         <div className="flex gap-2 justify-between">
           <button type="button" className="btn btn-secondary" onClick={onCancel}>
-            Cancel
+            取消
           </button>
           <button
             type="button"
@@ -51,7 +49,7 @@ export function GcConfirmDialog({ open, containerName, onConfirm, onCancel }: Gc
             data-testid="rm-run-gc-button"
             onClick={onConfirm}
           >
-            Run GC now
+            立即运行 GC
           </button>
         </div>
       </div>

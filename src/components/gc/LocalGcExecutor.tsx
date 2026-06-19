@@ -42,7 +42,7 @@ export function LocalGcExecutor({ containerId, containerName, profileId, registr
 
   const steps = result?.steps.map((item) => ({
     id: item.id,
-    title: item.id,
+    title: stepTitle(item.id),
     status: mapStepStatus(item.status),
     note: item.message,
   })) ?? [];
@@ -54,9 +54,9 @@ export function LocalGcExecutor({ containerId, containerName, profileId, registr
   return (
     <div className="card" data-testid="rm-local-gc-executor">
       <div className="card-header">
-        <div className="card-title">🧹 Local GC executor</div>
+        <div className="card-title">🧹 本地 GC 执行器</div>
         <button type="button" className="btn btn-danger btn-sm" onClick={() => setShowConfirm(true)} disabled={running}>
-          {running ? "Running GC…" : "Run GC"}
+          {running ? "正在运行 GC…" : "运行 GC"}
         </button>
       </div>
       <div className="card-body">
@@ -66,7 +66,7 @@ export function LocalGcExecutor({ containerId, containerName, profileId, registr
         {error ? <div className="preflight-item error" role="alert">{error}</div> : null}
         {result?.status === "gc_failed" ? (
           <div className="preflight-item error" role="alert">
-            Recovery required: {result.recoveryAction}
+            需要恢复：{result.recoveryAction}
           </div>
         ) : null}
         <GcResultSummary
@@ -78,12 +78,35 @@ export function LocalGcExecutor({ containerId, containerName, profileId, registr
 
       <GcConfirmDialog
         open={showConfirm}
-        containerName={linkedContainerLabel ?? "selected local registry"}
+        containerName={linkedContainerLabel ?? "所选本地 Registry"}
         onConfirm={runGc}
         onCancel={() => setShowConfirm(false)}
       />
     </div>
   );
+}
+
+function stepTitle(id: string) {
+  switch (id) {
+    case "snapshot":
+      return "快照";
+    case "preflight":
+      return "预检";
+    case "stop":
+      return "停止容器";
+    case "gc":
+      return "执行 GC";
+    case "cleanup":
+      return "清理";
+    case "restart":
+      return "重启容器";
+    case "health":
+      return "健康检查";
+    case "failure_recovery":
+      return "失败恢复";
+    default:
+      return id;
+  }
 }
 
 function mapStepStatus(status: string) {

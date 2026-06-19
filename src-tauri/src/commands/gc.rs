@@ -63,7 +63,7 @@ pub async fn run_local_gc(
     if !confirm_downtime {
         return Err(AppError::new(
             "gc_confirmation_required",
-            "Local GC requires explicit downtime confirmation.",
+            "本地 GC 需要明确确认停机。",
         ));
     }
 
@@ -97,7 +97,7 @@ pub async fn run_local_gc(
             steps.push(step(
                 "snapshot",
                 "done",
-                "Captured original state, image, mounts, env, restart policy and health.",
+                "已捕获原始状态、镜像、挂载、环境变量、重启策略和健康状态。",
             ));
             logs.push(format!(
                 "[snapshot] container={} image={} state={} mounts={}",
@@ -114,7 +114,7 @@ pub async fn run_local_gc(
         Err(error) => {
             return Err(AppError::with_details(
                 "gc_snapshot_failed",
-                "Failed to inspect the registry container before GC.",
+                "GC 前检查 Registry 容器失败。",
                 error,
             ))
         }
@@ -127,14 +127,14 @@ pub async fn run_local_gc(
     let result = async {
         preflight_config(&snapshot, &config_path, &mut logs).await?;
         preflight_help(&snapshot.original_image, &mut logs).await?;
-        steps.push(step("preflight", "done", "Verified local Docker context, config readability and garbage-collect help before downtime."));
+        steps.push(step("preflight", "done", "停机前已验证本地 Docker 上下文、配置可读性和 garbage-collect 帮助。"));
 
         if snapshot.original_running {
             docker_output(["stop", &container_id]).await?;
             logs.push("[stop] original registry container stopped".to_string());
-            steps.push(step("stop", "done", "Stopped original registry container before offline GC."));
+            steps.push(step("stop", "done", "已在离线 GC 前停止原 Registry 容器。"));
         } else {
-            steps.push(step("stop", "skipped", "Original registry container was not running; stopped state will be preserved."));
+            steps.push(step("stop", "skipped", "原 Registry 容器未运行；将保留停止状态。"));
         }
 
         let (code, output) = run_gc_container(&snapshot, &temp_name).await?;
@@ -143,30 +143,30 @@ pub async fn run_local_gc(
         steps.push(step(
             "gc",
             if code == 0 { "done" } else { "failed" },
-            "Ran registry garbage-collect --delete-untagged /etc/docker/registry/config.yml in a temporary container.",
+            "已在临时容器中运行 registry garbage-collect --delete-untagged /etc/docker/registry/config.yml。",
         ));
 
         cleanup_temp(&temp_name, &mut logs).await;
-        steps.push(step("cleanup", "done", "Temporary GC container removed."));
+        steps.push(step("cleanup", "done", "已移除临时 GC 容器。"));
 
         if snapshot.original_running {
             docker_output(["start", &container_id]).await?;
             recovery_action = "restarted_original_container".to_string();
-            steps.push(step("restart", "done", "Original registry container restarted."));
+            steps.push(step("restart", "done", "已重启原 Registry 容器。"));
             health_check(&profile.registry_url).await?;
             final_health_status = "healthy".to_string();
-            steps.push(step("health", "done", "/v2/ health check passed after restart."));
+            steps.push(step("health", "done", "重启后 /v2/ 健康检查通过。"));
         } else {
             recovery_action = "left_original_container_stopped".to_string();
             final_health_status = "not_applicable_originally_stopped".to_string();
-            steps.push(step("restart", "skipped", "Original registry container was stopped before GC and remains stopped."));
-            steps.push(step("health", "skipped", "Health check skipped because original container was stopped."));
+            steps.push(step("restart", "skipped", "原 Registry 容器在 GC 前已停止，并保持停止状态。"));
+            steps.push(step("health", "skipped", "原容器已停止，跳过健康检查。"));
         }
 
         if code == 0 {
             Ok(())
         } else {
-            Err(format!("registry garbage-collect exited with code {code}"))
+            Err(format!("registry garbage-collect 退出码为 {code}"))
         }
     }
     .await;
@@ -177,8 +177,7 @@ pub async fn run_local_gc(
             if docker_output(["start", &container_id]).await.is_ok() {
                 recovery_action = "restarted_original_container_after_failure".to_string();
             } else {
-                recovery_action =
-                    format!("manual recovery required: docker start {}", container_id);
+                recovery_action = format!("需要手动恢复：docker start {}", container_id);
             }
         }
         final_health_status = "gc_failed".to_string();
@@ -229,7 +228,7 @@ pub async fn run_local_gc(
     if let Err(error) = result {
         return Err(AppError::with_details(
             "local_gc_failed",
-            "Local registry GC failed and recovery was attempted.",
+            "本地 Registry GC 失败，并已尝试恢复。",
             error,
         ));
     }
@@ -252,12 +251,9 @@ pub async fn run_local_gc(
 
 async fn require_profile(state: &AppState, profile_id: &str) -> Result<RegistryProfile, AppError> {
     let id = Uuid::parse_str(profile_id)?;
-    get_registry_profile(&state.pool, id).await?.ok_or_else(|| {
-        AppError::new(
-            "profile_not_found",
-            "Selected registry profile was not found.",
-        )
-    })
+    get_registry_profile(&state.pool, id)
+        .await?
+        .ok_or_else(|| AppError::new("profile_not_found", "未找到所选 Registry 配置。"))
 }
 
 async fn inspect_snapshot(container_id: &str) -> Result<Snapshot, String> {
@@ -329,7 +325,7 @@ async fn inspect_container_value(container_ref: &str) -> Result<Value, String> {
         serde_json::from_str(&output).map_err(|error| error.to_string())?;
     values
         .pop()
-        .ok_or_else(|| "docker inspect returned no container".to_string())
+        .ok_or_else(|| "docker inspect 未返回容器".to_string())
 }
 
 async fn inspect_profile_container(profile: &RegistryProfile) -> Result<Snapshot, String> {
@@ -360,7 +356,7 @@ async fn inspect_profile_container(profile: &RegistryProfile) -> Result<Snapshot
     }
 
     if errors.is_empty() {
-        Err("No Docker container publishes the selected registry URL port.".to_string())
+        Err("没有 Docker 容器发布所选 Registry URL 端口。".to_string())
     } else {
         Err(errors.join("; "))
     }
@@ -384,7 +380,7 @@ async fn discover_registry_container_ref(registry_url: &str) -> Result<String, S
         .collect::<Vec<_>>();
 
     if candidate_ids.is_empty() {
-        return Err(format!("No Docker container publishes host port {port}."));
+        return Err(format!("没有 Docker 容器发布主机端口 {port}。"));
     }
 
     let mut matches = Vec::new();
@@ -411,12 +407,10 @@ async fn discover_registry_container_ref(registry_url: &str) -> Result<String, S
     } else if running.is_empty() && matches.len() == 1 {
         &matches[0]
     } else if matches.is_empty() {
-        return Err(format!(
-            "No Docker container port binding matches {host}:{port}."
-        ));
+        return Err(format!("没有 Docker 容器端口绑定匹配 {host}:{port}。"));
     } else {
         return Err(format!(
-            "Multiple Docker containers publish host port {port}; cannot choose a registry container safely."
+            "多个 Docker 容器发布了主机端口 {port}；无法安全选择 Registry 容器。"
         ));
     };
 
@@ -425,18 +419,18 @@ async fn discover_registry_container_ref(registry_url: &str) -> Result<String, S
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
-        .ok_or_else(|| "docker inspect did not return a container id".to_string())
+        .ok_or_else(|| "docker inspect 未返回容器 ID".to_string())
 }
 
 fn registry_endpoint(registry_url: &str) -> Result<(String, u16), String> {
     let url = Url::parse(registry_url).map_err(|error| error.to_string())?;
     let host = url
         .host_str()
-        .ok_or_else(|| "registry URL is missing a host".to_string())?
+        .ok_or_else(|| "Registry URL 缺少主机".to_string())?
         .to_string();
     let port = url
         .port_or_known_default()
-        .ok_or_else(|| "registry URL is missing a port".to_string())?;
+        .ok_or_else(|| "Registry URL 缺少端口".to_string())?;
     Ok((host, port))
 }
 

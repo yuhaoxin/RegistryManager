@@ -31,7 +31,7 @@ describe("RepositoryCard", () => {
     );
 
     expect(screen.queryByTestId("rm-repository-delete-button")).not.toBeInTheDocument();
-    expect(screen.getByTestId("rm-repository-delete-disabled")).toHaveTextContent(/remote delete disabled/i);
+    expect(screen.getByTestId("rm-repository-delete-disabled")).toHaveTextContent(/远程删除已禁用/);
   });
 
   it("hides the delete button when there is no profile id", () => {
@@ -44,7 +44,7 @@ describe("RepositoryCard", () => {
     );
 
     expect(screen.queryByTestId("rm-repository-delete-button")).not.toBeInTheDocument();
-    expect(screen.getByTestId("rm-repository-delete-disabled")).toHaveTextContent(/no tags to delete/i);
+    expect(screen.getByTestId("rm-repository-delete-disabled")).toHaveTextContent(/没有可删除的标签/);
   });
 
   it("requests delete when the delete button is clicked", async () => {

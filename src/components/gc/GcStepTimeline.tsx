@@ -12,8 +12,8 @@ export interface GcStepTimelineProps {
 export function GcStepTimeline({ steps }: GcStepTimelineProps) {
   return (
     <div data-testid="rm-gc-step-timeline">
-      <div className="gc-section-title">GC timeline</div>
-      <ol className="timeline" role="list" aria-label="Garbage collection steps">
+      <div className="gc-section-title">GC 时间线</div>
+      <ol className="timeline" role="list" aria-label="垃圾回收步骤">
         {steps.map((step) => (
           <li key={step.id} className={`timeline-step ${step.status}`}>
             <span className="timeline-dot" aria-hidden="true">

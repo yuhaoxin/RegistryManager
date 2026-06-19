@@ -10,16 +10,16 @@ export function TagTable({ tags, stale, onSelect }: TagTableProps) {
   return (
     <div className="card" data-testid="rm-tag-table">
       <div className="card-header">
-        <div className="card-title">🏷️ Tags</div>
+        <div className="card-title">🏷️ 标签</div>
       </div>
       <div className="card-body">
         <table className="data-table">
           <thead>
             <tr>
-              <th>Tag</th>
-              <th>Digest</th>
-              <th>Size</th>
-              <th>Created</th>
+              <th>标签</th>
+              <th>摘要</th>
+              <th>大小</th>
+              <th>创建时间</th>
             </tr>
           </thead>
           <tbody>
@@ -33,7 +33,7 @@ export function TagTable({ tags, stale, onSelect }: TagTableProps) {
                   {tag.name}
                   {stale || tag.stale ? (
                     <span className="badge badge-warning" data-testid="rm-tag-stale-marker">
-                      Stale cache
+                      缓存已过期
                     </span>
                   ) : null}
                 </td>

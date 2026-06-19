@@ -40,10 +40,10 @@ export function RepositoryBrowser({
   const [deleteTarget, setDeleteTarget] = useState<Repository | undefined>(undefined);
 
   return (
-    <section className="card" aria-label="Repository browser" data-testid="rm-repository-browser">
+    <section className="card" aria-label="仓库浏览器" data-testid="rm-repository-browser">
       <div className="card-header">
-        <div className="card-title">📚 Repositories</div>
-        {nextCursor ? <button className="btn btn-secondary btn-sm" onClick={onLoadMore} type="button">Load more</button> : null}
+        <div className="card-title">📚 仓库</div>
+        {nextCursor ? <button className="btn btn-secondary btn-sm" onClick={onLoadMore} type="button">加载更多</button> : null}
       </div>
       <div className="card-body">
         {stale ? <StaleCacheBanner /> : null}
@@ -65,7 +65,7 @@ export function RepositoryBrowser({
         </div>
         {filteredRepositories.length === 0 ? (
           <div className="state-center" data-testid="no-search-results" role="status">
-            <div className="state-title">No repositories match "{search}".</div>
+            <div className="state-title">没有仓库匹配“{search}”。</div>
           </div>
         ) : null}
       </div>

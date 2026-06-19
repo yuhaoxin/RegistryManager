@@ -3,7 +3,7 @@ export interface LoadingStateProps {
   testId?: string;
 }
 
-export function LoadingState({ message = "Loading…", testId }: LoadingStateProps) {
+export function LoadingState({ message = "正在加载…", testId }: LoadingStateProps) {
   return (
     <div className="state-center" data-testid={testId} role="status" aria-live="polite">
       <div className="state-icon" aria-hidden="true">⏳</div>

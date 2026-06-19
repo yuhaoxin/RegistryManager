@@ -32,14 +32,14 @@ export const AuditLogTable = forwardRef<AuditLogTableHandle>(function AuditLogTa
   return (
     <div className="card" id="audit" data-testid="rm-audit-log-table">
       <div className="card-header">
-        <div className="card-title">📜 Audit log</div>
+        <div className="card-title">📜 审计日志</div>
         <button type="button" className="btn btn-secondary btn-sm" data-testid="rm-refresh-audit-log-button" onClick={() => void refresh()}>
-          Refresh audit log
+          刷新审计日志
         </button>
       </div>
       <div className="card-body">
         <table className="audit-table">
-          <thead><tr><th>Time</th><th>Action</th><th>Repository</th><th>Digest</th><th>Status</th><th>Error</th></tr></thead>
+          <thead><tr><th>时间</th><th>操作</th><th>仓库</th><th>摘要</th><th>状态</th><th>错误</th></tr></thead>
           <tbody>
             {events.length ? events.map((event) => (
               <tr key={event.id}>
@@ -47,10 +47,10 @@ export const AuditLogTable = forwardRef<AuditLogTableHandle>(function AuditLogTa
                 <td>{actionLabel(event.action)}</td>
                 <td>{event.repositoryName ?? event.repository ?? "—"}</td>
                 <td className="font-mono">{event.digest ?? "—"}</td>
-                <td>{event.status}</td>
+                <td>{statusLabel(event.status)}</td>
                 <td>{event.errorMessage ?? "—"}</td>
               </tr>
-            )) : <tr><td colSpan={6}>No audit events yet.</td></tr>}
+            )) : <tr><td colSpan={6}>暂无审计事件。</td></tr>}
           </tbody>
         </table>
       </div>
@@ -59,5 +59,31 @@ export const AuditLogTable = forwardRef<AuditLogTableHandle>(function AuditLogTa
 });
 
 function actionLabel(action: AuditEvent["action"]) {
-  return action;
+  switch (action) {
+    case "delete_manifest":
+      return "删除清单";
+    case "local_gc":
+      return "本地 GC";
+    default:
+      return action;
+  }
+}
+
+function statusLabel(status: string) {
+  switch (status) {
+    case "success":
+      return "成功";
+    case "failure":
+      return "失败";
+    case "pending_gc":
+      return "等待 GC";
+    case "gc_completed":
+      return "GC 已完成";
+    case "gc_failed":
+      return "GC 失败";
+    case "partial_failure":
+      return "部分失败";
+    default:
+      return status;
+  }
 }

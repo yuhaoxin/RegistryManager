@@ -26,23 +26,23 @@ export function RepositoryCard({ repository, registryUrl, profileId, onClick, on
           onClick();
         }
       }}
-      aria-label={`Open ${repository.name}`}
+      aria-label={`打开 ${repository.name}`}
     >
       <div className="repository-card-name">
         {repository.name}
         {repository.stale ? (
           <span className="badge badge-warning" data-testid="rm-repository-stale-marker">
-            Stale cache
+            缓存已过期
           </span>
         ) : null}
       </div>
       <div className="repository-card-meta">
-        <span className="badge badge-info">{repository.tagCount} tag{repository.tagCount === 1 ? "" : "s"}</span>
+        <span className="badge badge-info">{repository.tagCount} 个标签</span>
         {repository.size ? <span>{repository.size}</span> : null}
       </div>
       {repository.lastUpdated ? (
         <div className="text-muted" style={{ fontSize: "var(--text-xs)" }}>
-          Updated {repository.lastUpdated}
+          更新于 {repository.lastUpdated}
         </div>
       ) : null}
       <div className="flex gap-2 items-center">
@@ -56,11 +56,11 @@ export function RepositoryCard({ repository, registryUrl, profileId, onClick, on
               onDeleteRequest?.(repository);
             }}
           >
-            Delete
+            删除
           </button>
         ) : (
           <span className="text-muted" style={{ fontSize: "var(--text-xs)" }} data-testid="rm-repository-delete-disabled">
-            {isLocal ? "No tags to delete" : "Remote delete disabled — destructive operations require a local registry"}
+            {isLocal ? "没有可删除的标签" : "远程删除已禁用——破坏性操作需要本地 Registry"}
           </span>
         )}
       </div>

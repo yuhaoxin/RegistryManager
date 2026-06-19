@@ -41,7 +41,7 @@ async function mockInvoke<T>(command: string, args: CommandArgs): Promise<T> {
           reachable: false,
           version: undefined,
           context: "default",
-          error: "Docker daemon is not reachable. Start Docker Desktop or the Docker Engine, then refresh Docker status.",
+          error: "无法连接 Docker 守护进程。请启动 Docker Desktop 或 Docker Engine，然后刷新 Docker 状态。",
         } as T;
       }
       return { reachable: true, version: undefined, context: "default" } as T;
@@ -52,7 +52,7 @@ async function mockInvoke<T>(command: string, args: CommandArgs): Promise<T> {
     case "create_registry_profile": {
       const input = args.profile as RegistryProfileInput;
       const profile = appendProfile({
-        name: input.name ?? "Manual registry",
+        name: input.name ?? "手动 Registry",
         registryUrl: input.registryUrl ?? "http://localhost:5000",
         credentialRef: input.credentialRef ?? null,
         containerId: input.containerId ?? null,
@@ -64,7 +64,7 @@ async function mockInvoke<T>(command: string, args: CommandArgs): Promise<T> {
       const profileId = String(args.profileId);
       const input = args.profile as RegistryProfileInput;
       const updated = updateProfileInStore(profileId, {
-        name: input.name ?? "Manual registry",
+        name: input.name ?? "手动 Registry",
         registryUrl: input.registryUrl ?? "http://localhost:5000",
         credentialRef: input.credentialRef ?? null,
         containerId: input.containerId ?? null,
@@ -85,7 +85,7 @@ async function mockInvoke<T>(command: string, args: CommandArgs): Promise<T> {
     case "select_registry_profile": {
       const input = args.profile as RegistryProfileInput;
       const profile = selectOrCreateProfile({
-        name: input.name ?? "Manual registry",
+        name: input.name ?? "手动 Registry",
         registryUrl: input.registryUrl ?? "http://localhost:5000",
         credentialRef: input.credentialRef ?? null,
         containerId: input.containerId ?? null,
@@ -99,7 +99,7 @@ async function mockInvoke<T>(command: string, args: CommandArgs): Promise<T> {
       return {
         reachable: !isOffline(),
         status: isOffline() ? "v2_unavailable" : "ok",
-        message: isOffline() ? "/v2/ unavailable; using cache." : "/v2/ responded successfully.",
+        message: isOffline() ? "/v2/ 不可用；正在使用缓存。" : "/v2/ 响应成功。",
         checkedAt: new Date().toISOString(),
       } as T;
     case "list_catalog":
@@ -113,18 +113,18 @@ async function mockInvoke<T>(command: string, args: CommandArgs): Promise<T> {
     case "get_manifest":
       if (isRealRegistryMode()) return getRealManifest(profileFromArgs(args), String(args.repository), String(args.reference)) as T;
       if (localStorage.getItem(CATALOG_KEY) === "true") return mockManifest(String(args.repository), String(args.reference)) as T;
-      throw { code: "manifest_not_found", message: "Manifest not found." };
+      throw { code: "manifest_not_found", message: "未找到清单。" };
     case "get_delete_impact":
       if (localStorage.getItem(CATALOG_KEY) === "true") return mockDeleteImpact(String(args.repository), String(args.reference)) as T;
-      throw { code: "manifest_not_found", message: "Manifest not found." };
+      throw { code: "manifest_not_found", message: "未找到清单。" };
     case "delete_manifest":
       if (localStorage.getItem(CATALOG_KEY) === "true") return mockDeleteManifest(args) as T;
-      throw { code: "manifest_not_found", message: "Manifest not found." };
+      throw { code: "manifest_not_found", message: "未找到清单。" };
     case "delete_repository": {
       const repository = String(args.repository);
       if (isRealRegistryMode()) return deleteRealRepository(profileFromArgs(args), repository) as T;
       if (localStorage.getItem(CATALOG_KEY) !== "true") {
-        throw { code: "registry_unreachable", message: "Registry is unreachable. Enable rm-mock-catalog to simulate repository deletion." };
+        throw { code: "registry_unreachable", message: "无法连接 Registry。启用 rm-mock-catalog 可模拟仓库删除。" };
       }
       if (localStorage.getItem(DELETE_REPO_PARTIAL_KEY) === "true") {
         return mockDeleteRepositoryPartial(repository) as T;
@@ -135,7 +135,7 @@ async function mockInvoke<T>(command: string, args: CommandArgs): Promise<T> {
       if (localStorage.getItem(GC_MOCK_KEY) === "true" || localStorage.getItem(GC_FAILURE_KEY) === "true") {
         return mockLocalGc() as T;
       }
-      throw { code: "gc_not_configured", message: "GC mock is disabled. Set rm-mock-gc in localStorage to enable." };
+      throw { code: "gc_not_configured", message: "GC mock 未启用。请在 localStorage 中设置 rm-mock-gc 以启用。" };
     case "list_audit_events":
       return readJson<AuditEvent[]>(AUDIT_KEY, []) as T;
     case "refresh_registry":
@@ -169,20 +169,20 @@ function mockDeleteImpact(repository: string, reference: string): DeleteImpact {
     mediaType: "application/vnd.docker.distribution.manifest.v2+json",
     affectedTags: ["latest"],
     isMultiArch: false,
-    warning: "Storage may not be released until server-side GC completes.",
+      warning: "在服务端 GC 完成前，存储空间可能不会释放。",
   };
 }
 
 function mockDeleteManifest(args: CommandArgs) {
   const digest = String(args.reference ?? "sha256:abc123def4567890");
   if (localStorage.getItem(DELETE_404_KEY) === "true") {
-    const event = auditEvent("delete_manifest", "failure", String(args.repository), digest, "Manifest digest was not found in the registry.");
+    const event = auditEvent("delete_manifest", "failure", String(args.repository), digest, "Registry 中未找到清单摘要。");
     appendAudit(event);
-    throw { code: "manifest_not_found", message: "Manifest digest was not found in the registry." };
+    throw { code: "manifest_not_found", message: "Registry 中未找到清单摘要。" };
   }
   const expected = digest.slice(-12);
   if (String(args.confirmedDigestSuffix) !== expected) {
-    throw { code: "delete_confirmation_mismatch", message: "Digest confirmation does not match the required suffix." };
+    throw { code: "delete_confirmation_mismatch", message: "摘要确认值与所需后缀不匹配。" };
   }
   appendAudit(auditEvent("delete_manifest", "pending_gc", String(args.repository), digest));
   return { digest, status: "pending_gc", pendingGc: true };
@@ -192,11 +192,11 @@ function mockDeleteRepository(repository: string): DeleteRepositoryResult {
   const digest = "sha256:abc123def4567890";
   const cached = readJson<CatalogPage | null>(CATALOG_CACHE_KEY, null);
   if (!cached) {
-    throw { code: "repository_not_found", message: `Repository ${repository} not found in catalog.` };
+    throw { code: "repository_not_found", message: `目录中未找到仓库 ${repository}。` };
   }
   const remaining = cached.repositories.filter((entry) => entry.repositoryName !== repository);
   if (remaining.length === cached.repositories.length) {
-    throw { code: "repository_not_found", message: `Repository ${repository} not found in catalog.` };
+    throw { code: "repository_not_found", message: `目录中未找到仓库 ${repository}。` };
   }
   localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({ ...cached, repositories: remaining }));
   return {
@@ -220,14 +220,14 @@ function mockDeleteRepositoryPartial(repository: string): DeleteRepositoryResult
     totalTags: 2,
     totalDigests: 2,
     deletedDigests: [digest],
-    failedDigests: [{ digest: "sha256:failed9876543210", tags: ["edge"], status: "failure", pendingGc: false, error: "Simulated digest delete failure." }],
+    failedDigests: [{ digest: "sha256:failed9876543210", tags: ["edge"], status: "failure", pendingGc: false, error: "模拟摘要删除失败。" }],
     tagResults: [
       { tag: "latest", digest, status: "pending_gc" },
-      { tag: "edge", digest: "sha256:failed9876543210", status: "failure", error: "Simulated tag resolution failure." },
+      { tag: "edge", digest: "sha256:failed9876543210", status: "failure", error: "模拟标签解析失败。" },
     ],
     digestResults: [
       { digest, tags: ["latest"], status: "pending_gc", pendingGc: true },
-      { digest: "sha256:failed9876543210", tags: ["edge"], status: "failure", pendingGc: false, error: "Simulated digest delete failure." },
+      { digest: "sha256:failed9876543210", tags: ["edge"], status: "failure", pendingGc: false, error: "模拟摘要删除失败。" },
     ],
     pendingGc: true,
   };
@@ -249,18 +249,18 @@ function mockLocalGc(): GcResult {
         "[recovery] original registry container restarted; run docker start registry if it is not healthy",
       ],
       steps: [
-        { id: "snapshot", status: "done", message: "Captured original state and exact docker inspect mounts." },
-        { id: "stop", status: "done", message: "Stopped original registry before offline GC." },
-        { id: "gc", status: "failed", message: "GC failed because the registry config path is invalid." },
-        { id: "cleanup", status: "done", message: "Removed temporary GC container." },
-        { id: "restart", status: "done", message: "Attempted to restore original running state." },
-        { id: "health", status: "failed", message: "Verify registry health manually after fixing the config path." },
+        { id: "snapshot", status: "done", message: "已捕获原始状态和精确的 docker inspect 挂载信息。" },
+        { id: "stop", status: "done", message: "已在离线 GC 前停止原 Registry。" },
+        { id: "gc", status: "failed", message: "Registry 配置路径无效，GC 失败。" },
+        { id: "cleanup", status: "done", message: "已移除临时 GC 容器。" },
+        { id: "restart", status: "done", message: "已尝试恢复原运行状态。" },
+        { id: "health", status: "failed", message: "修复配置路径后，请手动验证 Registry 健康状态。" },
       ],
       originalState: "running",
       originalImage: "registry:2",
       mountSummary: "[{\"Type\":\"volume\",\"Destination\":\"/var/lib/registry\"}]",
       configPath: "/missing/config.yml",
-      recoveryAction: "Fix REGISTRY_CONFIGURATION_PATH, then run docker start registry and retry GC.",
+      recoveryAction: "修复 REGISTRY_CONFIGURATION_PATH，然后运行 docker start registry 并重试 GC。",
       finalHealthStatus: "recovery_required",
     };
     appendAudit(auditEvent("local_gc", "gc_failed", undefined, undefined, result.recoveryAction));
@@ -280,12 +280,12 @@ function mockLocalGc(): GcResult {
       "[health] /v2/ ok",
     ],
     steps: [
-      { id: "snapshot", status: "done", message: "Captured original state and exact docker inspect mounts." },
-      { id: "stop", status: "done", message: "Stopped original registry before offline GC." },
-      { id: "gc", status: "done", message: "Ran temporary registry GC container." },
-      { id: "cleanup", status: "done", message: "Removed temporary GC container." },
-      { id: "restart", status: "done", message: "Restored original running state." },
-      { id: "health", status: "done", message: "/v2/ health check passed." },
+      { id: "snapshot", status: "done", message: "已捕获原始状态和精确的 docker inspect 挂载信息。" },
+      { id: "stop", status: "done", message: "已在离线 GC 前停止原 Registry。" },
+      { id: "gc", status: "done", message: "已运行临时 Registry GC 容器。" },
+      { id: "cleanup", status: "done", message: "已移除临时 GC 容器。" },
+      { id: "restart", status: "done", message: "已恢复原运行状态。" },
+      { id: "health", status: "done", message: "/v2/ 健康检查通过。" },
     ],
     originalState: "running",
     originalImage: "registry:2",
@@ -318,7 +318,7 @@ function appendAudit(event: AuditEvent) {
 function mockCatalogPage(): CatalogPage {
   const cached = readJson<CatalogPage | null>(CATALOG_CACHE_KEY, null);
   if (isOffline() && cached) {
-    return { ...cached, stale: true, error: "Registry is offline." };
+    return { ...cached, stale: true, error: "Registry 离线。" };
   }
 
   const now = new Date().toISOString();
@@ -337,7 +337,7 @@ function mockCatalogPage(): CatalogPage {
 function mockTagsPage(repository: string): TagsPage {
   const cached = readJson<Record<string, TagsPage>>(TAG_CACHE_KEY, {});
   if (isOffline() && cached[repository]) {
-    return { ...cached[repository], stale: true, error: "Registry is offline." };
+    return { ...cached[repository], stale: true, error: "Registry 离线。" };
   }
 
   const now = new Date().toISOString();
@@ -389,7 +389,7 @@ function profileFromArgs(args: CommandArgs): RegistryProfile {
   const selected = readJson<RegistryProfile | null>(SELECTED_PROFILE_KEY, null);
   const profiles = readJson<RegistryProfile[]>(PROFILES_KEY, []);
   const profile = profiles.find((item) => item.id === profileId) ?? selected;
-  if (!profile) throw { code: "profile_not_selected", message: "Select a registry profile first." };
+  if (!profile) throw { code: "profile_not_selected", message: "请先选择一个 Registry 配置。" };
   assertLocalRegistryUrl(profile.registryUrl);
   return profile;
 }
@@ -399,7 +399,7 @@ function assertLocalRegistryUrl(registryUrl: string) {
   const host = url.hostname.toLowerCase();
   const isLocal = host === "localhost" || host === "127.0.0.1" || host === "::1";
   if (!isLocal) {
-    throw { code: "remote_registry_forbidden", message: "Real browser QA mode only targets localhost registries." };
+    throw { code: "remote_registry_forbidden", message: "真实浏览器 QA 模式仅支持 localhost Registry。" };
   }
 }
 
@@ -409,7 +409,7 @@ async function checkRealRegistryHealth(profile: RegistryProfile): Promise<Regist
     return {
       reachable: response.ok,
       status: response.ok ? "ok" : "v2_unavailable",
-      message: response.ok ? "/v2/ responded successfully." : `/v2/ returned ${response.status}.`,
+      message: response.ok ? "/v2/ 响应成功。" : `/v2/ 返回 ${response.status}。`,
       checkedAt: new Date().toISOString(),
     };
   } catch (error) {
@@ -419,7 +419,7 @@ async function checkRealRegistryHealth(profile: RegistryProfile): Promise<Regist
 
 async function listRealCatalog(profile: RegistryProfile): Promise<CatalogPage> {
   const response = await registryFetch(profile, "/v2/_catalog", { method: "GET" });
-  if (!response.ok) throw { code: "registry_unreachable", message: `Catalog request failed with ${response.status}.` };
+  if (!response.ok) throw { code: "registry_unreachable", message: `目录请求失败，状态码 ${response.status}。` };
   const body = (await response.json()) as { repositories?: string[] };
   const now = new Date().toISOString();
   const repositories = await Promise.all(
@@ -454,7 +454,7 @@ async function listRealTags(profile: RegistryProfile, repository: string): Promi
 async function fetchRealTagNames(profile: RegistryProfile, repository: string): Promise<string[]> {
   const response = await registryFetch(profile, `/v2/${encodeRepository(repository)}/tags/list`, { method: "GET" });
   if (response.status === 404) return [];
-  if (!response.ok) throw { code: "tags_unreachable", message: `Tags request for ${repository} failed with ${response.status}.` };
+  if (!response.ok) throw { code: "tags_unreachable", message: `${repository} 的标签请求失败，状态码 ${response.status}。` };
   const body = (await response.json()) as { tags?: string[] | null };
   return body.tags ?? [];
 }
@@ -464,7 +464,7 @@ async function getRealManifest(profile: RegistryProfile, repository: string, ref
     method: "GET",
     headers: manifestHeaders(),
   });
-  if (!response.ok) throw { code: "manifest_not_found", message: `Manifest ${reference} was not found in ${repository}.` };
+  if (!response.ok) throw { code: "manifest_not_found", message: `在 ${repository} 中未找到清单 ${reference}。` };
   const rawJson = await response.text();
   const parsed = JSON.parse(rawJson) as {
     mediaType?: string;
@@ -504,7 +504,7 @@ async function deleteRealRepository(profile: RegistryProfile, repository: string
       digestResults.push({ digest, tags, status: "pending_gc", pendingGc: true });
       tags.forEach((tag) => tagResults.push({ tag, digest, status: "pending_gc" }));
     } else {
-      const result = { digest, tags, status: "failure", pendingGc: false, error: `DELETE returned ${response.status}.` };
+      const result = { digest, tags, status: "failure", pendingGc: false, error: `DELETE 返回 ${response.status}。` };
       failedDigests.push(result);
       digestResults.push(result);
       tags.forEach((tag) => tagResults.push({ tag, digest, status: "failure", error: result.error }));
@@ -634,7 +634,7 @@ function updateProfileInStore(profileId: string, input: RegistryProfileInput): R
     ) {
       throw {
         code: "duplicate_registry_url",
-        message: "A registry profile with this URL already exists.",
+        message: "已存在使用此 URL 的 Registry 配置。",
       };
     }
     profiles[index] = {

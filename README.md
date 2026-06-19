@@ -1,167 +1,167 @@
-# Registry Manager
+# Registry 管理器
 
-Registry Manager is a Tauri v2 desktop application for managing local Docker Registry v2 instances. It focuses on safe local workflows: manually registering local Registry v2 URLs, browsing repositories and manifests, deleting manifests by digest, executing local storage reclaim, and preserving audit/cache state for offline visibility.
+Registry 管理器是一个用于管理本地 Docker Registry v2 实例的 Tauri v2 桌面应用。它专注于安全的本地工作流：手动注册本地 Registry v2 URL、浏览仓库和清单、按摘要删除清单、执行本地存储回收，并保留审计/缓存状态以便离线查看。
 
-## Features
+## 功能
 
-- Manual local Registry v2 URL profile management.
-- Repository, tag, manifest, and digest browsing for Registry v2 endpoints.
-- Live registry health/status checks with manual refresh and offline cache fallback.
-- Safe manifest deletion with confirmation, impact preview, and audit logging.
-- Local Storage Reclaim that executes real local Docker registry garbage collection.
-- Offline SQLite cache for previously browsed repositories and manifests.
-- System keyring credential storage; no plaintext credential persistence.
+- 手动管理本地 Registry v2 URL 配置。
+- 浏览 Registry v2 端点中的仓库、标签、清单和摘要。
+- 实时检查 Registry 健康/状态，支持手动刷新和离线缓存回退。
+- 通过确认、影响预览和审计日志安全删除清单。
+- 本地存储回收会执行真实的本地 Docker Registry 垃圾回收。
+- 使用 SQLite 离线缓存已浏览过的仓库和清单。
+- 凭据存储在系统钥匙串中；不会以明文持久化凭据。
 
-## Target platforms
+## 目标平台
 
-| Platform | Supported baseline | Notes |
+| 平台 | 支持基线 | 说明 |
 | --- | --- | --- |
-| macOS | macOS 13+ | Docker Desktop recommended. |
-| Windows | Windows 10+ | Docker Desktop with WSL2 backend recommended. |
-| Linux | Ubuntu 22.04+ | Docker Engine and Tauri WebKitGTK dependencies required. |
+| macOS | macOS 13+ | 推荐使用 Docker Desktop。 |
+| Windows | Windows 10+ | 推荐使用带 WSL2 后端的 Docker Desktop。 |
+| Linux | Ubuntu 22.04+ | 需要 Docker Engine 和 Tauri WebKitGTK 依赖。 |
 
-Production signing, notarization, and store packaging are not configured in this repository. Release builds are unsigned unless you provide platform certificates and configure Tauri signing separately.
+本仓库未配置生产签名、公证和应用商店打包。除非你提供平台证书并单独配置 Tauri 签名，否则发布构建不会签名。
 
-## Prerequisites
+## 前置条件
 
-- Rust stable toolchain and Cargo.
-- Node.js compatible with the project lockfile.
-- pnpm.
-- Docker Desktop or Docker Engine.
-- Tauri platform prerequisites for your OS.
+- Rust stable 工具链和 Cargo。
+- 与项目锁文件兼容的 Node.js。
+- pnpm。
+- Docker Desktop 或 Docker Engine。
+- 当前操作系统所需的 Tauri 平台前置依赖。
 
-## Install
+## 安装
 
 ```bash
 pnpm install
 ```
 
-## Development
+## 开发
 
-Start the desktop app in Tauri development mode:
+以 Tauri 开发模式启动桌面应用：
 
 ```bash
 pnpm tauri dev
 ```
 
-Frontend-only Vite development is available for browser-based UI work:
+如需在浏览器中开发界面，也可以只启动 Vite 前端：
 
 ```bash
 pnpm dev
 ```
 
-## Build
+## 构建
 
-Create a platform package for the current OS:
+为当前操作系统创建平台包：
 
 ```bash
 pnpm tauri build
 ```
 
-The Tauri configuration uses product name `Registry Manager`, app identifier `com.yuhaoxin.registry-manager`, a 1280x800 default window, and a macOS `.app` bundle target for the current MVP build. Windows and Linux support are tracked in the platform matrix and CI checks; installer signing/notarization is intentionally not claimed here.
+Tauri 配置使用产品名 `Registry Manager`、应用标识 `com.yuhaoxin.registry-manager`、1280x800 默认窗口，并在当前 MVP 构建中使用 macOS `.app` 包目标。Windows 和 Linux 支持通过平台矩阵与 CI 检查跟踪；这里不声明安装器签名/公证能力。
 
-## Test
+## 测试
 
-Run Rust tests:
+运行 Rust 测试：
 
 ```bash
 cargo test
 ```
 
-Run frontend unit tests:
+运行前端单元测试：
 
 ```bash
 pnpm vitest run
 ```
 
-Run browser E2E tests:
+运行浏览器 E2E 测试：
 
 ```bash
 pnpm playwright test
 ```
 
-Run the frontend production build/typecheck:
+运行前端生产构建/类型检查：
 
 ```bash
 pnpm build
 ```
 
-## Local Docker registry setup
+## 本地 Docker Registry 设置
 
-Start a disposable local Registry v2 container on `localhost:5000`:
-
-```bash
-docker run -d -p 5000:5000 --name registry registry:2
-```
-
-If the name `registry` or port `5000` is already in use, remove or rename your existing test container, or use the repository test fixture on `localhost:5001` where appropriate.
-
-Add the registry in the app by creating a profile with the local endpoint URL, for example `http://localhost:5000`. The dashboard reads live status for the selected profile and refreshes repositories/tags/manifests only when requested or when you manually trigger refresh actions; if live reads fail, previously cached data remains available and is marked as stale.
-
-## Security notes
-
-- Credentials are stored through the operating system keyring, not plaintext project files or SQLite rows.
-- Registry actions are intended for local Docker Engine/Desktop contexts. Remote Docker contexts are rejected for destructive workflows.
-- Delete and garbage-collection operations are recorded in the audit log with status and error details.
-- Do not run destructive workflows against production registries. This MVP is designed for local registry maintenance.
-
-## Deletion and garbage-collection caveats
-
-- Manifest deletion is performed by digest, not by tag. Tags are resolved to immutable manifest digests before deletion.
-- Manifest deletion does not guarantee storage reclamation until local garbage collection completes successfully.
-- Local Storage Reclaim executes real local Docker registry garbage collection only. It does not trigger or manage garbage collection on remote registries.
-- Local GC depends on the registry container configuration, storage mounts, and config path. If those are wrong, the command can fail without reclaiming storage.
-- The registry may need to be restarted after GC before clients observe a healthy `/v2/` endpoint.
-
-## Troubleshooting
-
-### Docker daemon unavailable
-
-Start Docker Desktop or Docker Engine before running Docker-backed workflows such as Local Storage Reclaim. On Linux, verify the daemon with `docker ps`.
-
-### Docker permission errors
-
-Ensure your user can access the Docker socket. On Linux, add the user to the `docker` group and start a new login session. Running with `sudo` can work for diagnostics, but it is not recommended for normal desktop app use because it changes environment and credential access.
-
-### Registry URL unavailable
-
-Ensure the selected manual profile points to a local Registry v2 endpoint and that the registry is running, for example:
+在 `localhost:5000` 启动一个一次性的本地 Registry v2 容器：
 
 ```bash
 docker run -d -p 5000:5000 --name registry registry:2
 ```
 
-Then verify:
+如果名称 `registry` 或端口 `5000` 已被占用，请删除或重命名现有测试容器，或在合适场景使用仓库提供的 `localhost:5001` 测试夹具。
+
+在应用中创建一个使用本地端点 URL 的配置即可添加 Registry，例如 `http://localhost:5000`。仪表盘会读取所选配置的实时状态，并且只在请求或手动触发刷新时刷新仓库/标签/清单；如果实时读取失败，之前缓存的数据仍可用，并会标记为过期。
+
+## 安全说明
+
+- 凭据通过操作系统钥匙串存储，不会写入明文项目文件或 SQLite 行。
+- Registry 操作用于本地 Docker Engine/Desktop 上下文。破坏性工作流会拒绝远程 Docker 上下文。
+- 删除和垃圾回收操作会在审计日志中记录状态和错误详情。
+- 不要对生产 Registry 运行破坏性工作流。此 MVP 面向本地 Registry 维护设计。
+
+## 删除和垃圾回收注意事项
+
+- 清单删除按摘要执行，而不是按标签执行。标签会先解析为不可变清单摘要再删除。
+- 在本地垃圾回收成功完成之前，删除清单不保证释放存储空间。
+- 本地存储回收只执行真实的本地 Docker Registry 垃圾回收。它不会触发或管理远程 Registry 的垃圾回收。
+- 本地 GC 依赖 Registry 容器配置、存储挂载和配置路径。如果这些配置错误，命令可能失败且不会回收存储。
+- GC 后可能需要重启 Registry，客户端才能观察到健康的 `/v2/` 端点。
+
+## 故障排查
+
+### Docker 守护进程不可用
+
+运行本地存储回收等依赖 Docker 的工作流前，请先启动 Docker Desktop 或 Docker Engine。在 Linux 上，可用 `docker ps` 验证守护进程。
+
+### Docker 权限错误
+
+确保当前用户可以访问 Docker socket。在 Linux 上，将用户加入 `docker` 组并开启新的登录会话。使用 `sudo` 可用于诊断，但不推荐在桌面应用正常使用时这样做，因为它会改变环境和凭据访问方式。
+
+### Registry URL 不可用
+
+确保所选手动配置指向本地 Registry v2 端点，并且 Registry 正在运行，例如：
+
+```bash
+docker run -d -p 5000:5000 --name registry registry:2
+```
+
+然后验证：
 
 ```bash
 curl -fsS http://localhost:5000/v2/
 ```
 
-### GC failure
+### GC 失败
 
-Check the app audit entry and Docker logs:
+检查应用审计条目和 Docker 日志：
 
 ```bash
 docker logs registry
 ```
 
-Confirm the registry config path exists inside the container, storage mounts are preserved, and the image supports `registry garbage-collect`. If the app stopped the registry before failure, restart it manually after reviewing logs.
+确认 Registry 配置路径存在于容器内，存储挂载已保留，并且镜像支持 `registry garbage-collect`。如果应用在失败前停止了 Registry，请查看日志后手动重启。
 
-### Restart failure
+### 重启失败
 
-Manually restart the original registry container:
+手动重启原 Registry 容器：
 
 ```bash
 docker start <container>
 ```
 
-Then check health with:
+然后检查健康状态：
 
 ```bash
 curl -fsS http://localhost:5000/v2/
 ```
 
-## Useful commands
+## 常用命令
 
 ```bash
 pnpm install

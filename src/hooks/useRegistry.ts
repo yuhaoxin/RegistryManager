@@ -116,7 +116,7 @@ export function useRegistry() {
         digest: summary.digest,
         mediaType: summary.mediaType,
         size: summary.size,
-        platform: summary.platforms?.[0] ? `${summary.platforms[0].os ?? "unknown"}/${summary.platforms[0].architecture ?? "unknown"}` : undefined,
+        platform: summary.platforms?.[0] ? `${summary.platforms[0].os ?? "未知"}/${summary.platforms[0].architecture ?? "未知"}` : undefined,
         layers: summary.layers,
         platforms: summary.platforms,
         rawJson: summary.rawJson,

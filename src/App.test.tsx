@@ -6,6 +6,6 @@ describe("App", () => {
     render(<App />);
 
     expect(screen.getByTestId("app-root")).toBeVisible();
-    expect(screen.getByText("Registry Manager")).toBeInTheDocument();
+    expect(screen.getByText("Registry 管理器")).toBeInTheDocument();
   });
 });

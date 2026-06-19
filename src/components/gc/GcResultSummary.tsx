@@ -9,7 +9,7 @@ export function GcResultSummary({ status, durationMs, freedBytes, errorMessage }
   if (status === "idle") {
     return (
       <div className="card" data-testid="rm-gc-result-summary">
-        <p className="text-secondary">GC has not started yet.</p>
+        <p className="text-secondary">GC 尚未开始。</p>
       </div>
     );
   }
@@ -19,7 +19,7 @@ export function GcResultSummary({ status, durationMs, freedBytes, errorMessage }
       <div className="card" data-testid="rm-gc-result-summary">
         <div className="flex items-center gap-2">
           <span aria-hidden="true">⏳</span>
-          <span>Garbage collection in progress…</span>
+          <span>垃圾回收正在进行…</span>
         </div>
       </div>
     );
@@ -30,20 +30,20 @@ export function GcResultSummary({ status, durationMs, freedBytes, errorMessage }
   return (
     <div className="card" data-testid="rm-gc-result-summary">
       <div className="card-header">
-        <div className="card-title">{isSuccess ? "✅ GC completed" : "❌ GC failed"}</div>
-        <span className={`badge badge-${isSuccess ? "success" : "danger"}`}>{status}</span>
+        <div className="card-title">{isSuccess ? "✅ GC 已完成" : "❌ GC 失败"}</div>
+        <span className={`badge badge-${isSuccess ? "success" : "danger"}`}>{isSuccess ? "成功" : "失败"}</span>
       </div>
       <div className="card-body">
         {typeof durationMs === "number" ? (
           <div className="metric">
             <div className="metric-value">{(durationMs / 1000).toFixed(2)}s</div>
-            <div className="metric-label">Duration</div>
+            <div className="metric-label">耗时</div>
           </div>
         ) : null}
         {typeof freedBytes === "number" ? (
           <div className="metric">
             <div className="metric-value">{(freedBytes / 1024 / 1024).toFixed(2)} MB</div>
-            <div className="metric-label">Estimated freed</div>
+            <div className="metric-label">预计释放</div>
           </div>
         ) : null}
         {errorMessage ? <p className="text-secondary">{errorMessage}</p> : null}

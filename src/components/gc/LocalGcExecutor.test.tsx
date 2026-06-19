@@ -28,7 +28,7 @@ describe("LocalGcExecutor", () => {
   it("opens the confirmation dialog when Run GC is clicked", async () => {
     const user = userEvent.setup();
     render(<LocalGcExecutor profileId="p1" registryUrl="http://localhost:5000" />);
-    await user.click(screen.getByRole("button", { name: /Run GC/i }));
+    await user.click(screen.getByRole("button", { name: /运行 GC/ }));
     expect(screen.getByTestId("rm-gc-confirm-dialog")).toBeVisible();
   });
 
@@ -36,6 +36,6 @@ describe("LocalGcExecutor", () => {
     render(<LocalGcExecutor profileId="p1" />);
     expect(screen.queryByTestId("rm-local-gc-executor")).not.toBeInTheDocument();
     expect(screen.queryByTestId("rm-local-gc-unavailable")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Run GC/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /运行 GC/ })).not.toBeInTheDocument();
   });
 });

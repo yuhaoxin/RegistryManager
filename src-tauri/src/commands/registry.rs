@@ -172,7 +172,7 @@ pub async fn set_registry_credentials(
     if username.is_empty() {
         return Err(AppError::new(
             "invalid_registry_credentials",
-            "Registry credential username is required.",
+            "Registry 凭据用户名为必填项。",
         ));
     }
 
@@ -222,13 +222,13 @@ async fn check_registry_health_for_state(
         Ok(Ok(())) => Ok(RegistryHealth {
             reachable: true,
             status: "ok".to_string(),
-            message: "/v2/ responded successfully.".to_string(),
+            message: "/v2/ 响应成功。".to_string(),
             checked_at,
         }),
         Ok(Err(RegistryError::UnexpectedStatus(status))) => Ok(RegistryHealth {
             reachable: false,
             status: "registry_api_error".to_string(),
-            message: format!("/v2/ returned HTTP {status}."),
+            message: format!("/v2/ 返回 HTTP {status}。"),
             checked_at,
         }),
         Ok(Err(error)) => Ok(RegistryHealth {
@@ -240,7 +240,7 @@ async fn check_registry_health_for_state(
         Err(_) => Ok(RegistryHealth {
             reachable: false,
             status: "timeout".to_string(),
-            message: "/v2/ health check timed out.".to_string(),
+            message: "/v2/ 健康检查超时。".to_string(),
             checked_at,
         }),
     }
@@ -312,9 +312,7 @@ async fn list_catalog_for_state(
             })
         }
         Ok(Err(error)) => cached_catalog_page(state, profile.id, error.to_string()).await,
-        Err(_) => {
-            cached_catalog_page(state, profile.id, "catalog request timed out".to_string()).await
-        }
+        Err(_) => cached_catalog_page(state, profile.id, "目录请求超时".to_string()).await,
     }
 }
 
@@ -367,13 +365,7 @@ pub async fn list_tags(
         }
         Ok(Err(error)) => cached_tags_page(&state, profile.id, repository, error.to_string()).await,
         Err(_) => {
-            cached_tags_page(
-                &state,
-                profile.id,
-                repository,
-                "tags request timed out".to_string(),
-            )
-            .await
+            cached_tags_page(&state, profile.id, repository, "标签请求超时".to_string()).await
         }
     }
 }
@@ -457,7 +449,7 @@ pub async fn refresh_registry(
         }),
         Ok(Err(join_error)) => Err(AppError::with_details(
             "refresh_failed",
-            "Registry refresh task failed.",
+            "Registry 刷新任务失败。",
             join_error.to_string(),
         )),
         Err(_) => {
@@ -644,16 +636,16 @@ fn normalize_registry_url(value: &str) -> Result<String, AppError> {
     if trimmed.is_empty() {
         return Err(AppError::new(
             "invalid_registry_url",
-            "Registry URL is required.",
+            "Registry URL 为必填项。",
         ));
     }
 
     let url = Url::parse(trimmed)
-        .map_err(|_| AppError::new("invalid_registry_url", "Invalid registry URL."))?;
+        .map_err(|_| AppError::new("invalid_registry_url", "Registry URL 无效。"))?;
     if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
         return Err(AppError::new(
             "invalid_registry_url",
-            "Registry URL must be an HTTP(S) URL with a host.",
+            "Registry URL 必须是包含主机的 HTTP(S) URL。",
         ));
     }
 
@@ -672,25 +664,22 @@ fn optional_trimmed(value: Option<String>) -> Option<String> {
 }
 
 fn profile_not_found_error() -> AppError {
-    AppError::new(
-        "profile_not_found",
-        "Selected registry profile was not found.",
-    )
+    AppError::new("profile_not_found", "未找到所选 Registry 配置。")
 }
 
 fn duplicate_registry_url_error() -> AppError {
     AppError::new(
         "duplicate_registry_url",
-        "A registry profile with this URL already exists.",
+        "已存在使用此 URL 的 Registry 配置。",
     )
 }
 
 pub(crate) async fn ensure_local_registry_target(registry_url: &str) -> Result<(), AppError> {
     let url = Url::parse(registry_url)
-        .map_err(|_| AppError::new("invalid_registry_url", "Invalid registry URL."))?;
+        .map_err(|_| AppError::new("invalid_registry_url", "Registry URL 无效。"))?;
     let host = url
         .host_str()
-        .ok_or_else(|| AppError::new("invalid_registry_url", "Invalid registry URL."))?;
+        .ok_or_else(|| AppError::new("invalid_registry_url", "Registry URL 无效。"))?;
 
     if is_loopback_host(host) {
         return Ok(());
@@ -726,8 +715,8 @@ fn is_loopback_host(host: &str) -> bool {
 fn remote_registry_not_allowed(registry_url: &str) -> AppError {
     AppError::with_details(
         "REMOTE_REGISTRY_NOT_ALLOWED",
-        "Only local Docker registry targets are allowed.",
-        format!("Registry URL is not loopback-local: {registry_url}"),
+        "仅允许本地 Docker Registry 目标。",
+        format!("Registry URL 不是本地回环地址：{registry_url}"),
     )
 }
 
@@ -740,7 +729,7 @@ async fn cached_catalog_page(
     if repositories.is_empty() {
         return Err(AppError::with_details(
             "registry_unreachable",
-            "Registry is unreachable and no cached repositories are available.",
+            "无法连接 Registry，且没有可用的缓存仓库。",
             error,
         ));
     }
@@ -766,7 +755,7 @@ async fn cached_tags_page(
     if tags.is_empty() {
         return Err(AppError::with_details(
             "registry_unreachable",
-            "Registry is unreachable and no cached tags are available.",
+            "无法连接 Registry，且没有可用的缓存标签。",
             error,
         ));
     }
@@ -1324,14 +1313,14 @@ mod tests {
             &state,
             profile.id,
             "alpine".to_string(),
-            "tags request timed out".to_string(),
+            "标签请求超时".to_string(),
         )
         .await
         .expect("cached tags should load");
 
         assert!(page.stale);
         assert_eq!(page.last_synced_at, Some(synced_at));
-        assert_eq!(page.error.as_deref(), Some("tags request timed out"));
+        assert_eq!(page.error.as_deref(), Some("标签请求超时"));
         assert_eq!(page.tags[0].tag, "latest");
     }
 

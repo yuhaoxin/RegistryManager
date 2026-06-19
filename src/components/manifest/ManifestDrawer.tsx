@@ -25,10 +25,10 @@ export function ManifestDrawer({ open, repositoryName, manifest, profileId, onCl
       <div className="drawer">
         <div className="drawer-header">
           <div>
-            <div className="card-title" id="manifest-title">📄 Manifest detail</div>
+            <div className="card-title" id="manifest-title">📄 清单详情</div>
             <div className="card-subtitle">{repositoryName}</div>
           </div>
-          <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="Close manifest drawer">
+          <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="关闭清单抽屉">
             ✕
           </button>
         </div>
@@ -36,40 +36,40 @@ export function ManifestDrawer({ open, repositoryName, manifest, profileId, onCl
         <div className="drawer-body">
           {manifest ? (
             <>
-              {manifest.stale ? <StaleCacheBanner message="Registry is offline. Showing stale cached manifest." /> : null}
+              {manifest.stale ? <StaleCacheBanner message="Registry 离线。正在显示已过期的缓存清单。" /> : null}
               <div className="card" style={{ background: "var(--color-bg-sunken)" }}>
                 <div className="card-body">
                   <div className="metric">
-                    <div className="metric-label">Digest</div>
+                    <div className="metric-label">摘要</div>
                     <div className="metric-value" style={{ fontSize: "var(--text-sm)", wordBreak: "break-all" }}>
                       {manifest.digest}
                     </div>
                   </div>
                   <div className="flex gap-4">
                     <div className="metric">
-                      <div className="metric-label">Media type</div>
+                      <div className="metric-label">媒体类型</div>
                       <div className="metric-value" style={{ fontSize: "var(--text-sm)" }}>{manifest.mediaType}</div>
                     </div>
                     <div className="metric">
-                      <div className="metric-label">Size</div>
-                      <div className="metric-value" style={{ fontSize: "var(--text-sm)" }}>{manifest.size} bytes</div>
+                      <div className="metric-label">大小</div>
+                      <div className="metric-value" style={{ fontSize: "var(--text-sm)" }}>{manifest.size} 字节</div>
                     </div>
                   </div>
                   {manifest.platform ? (
                     <div className="metric">
-                      <div className="metric-label">Platform</div>
+                      <div className="metric-label">平台</div>
                       <div className="metric-value" style={{ fontSize: "var(--text-sm)" }}>{manifest.platform}</div>
                     </div>
                   ) : null}
                   {manifest.layers?.length ? (
                     <div className="metric">
-                      <div className="metric-label">Layers</div>
+                      <div className="metric-label">层</div>
                       <div className="metric-value" style={{ fontSize: "var(--text-sm)" }}>{manifest.layers.length}</div>
                     </div>
                   ) : null}
                   {manifest.platforms?.length ? (
                     <div className="metric">
-                      <div className="metric-label">Platforms</div>
+                      <div className="metric-label">平台</div>
                       <div className="metric-value" style={{ fontSize: "var(--text-sm)" }}>
                         {manifest.platforms.map((platform) => `${platform.os ?? "unknown"}/${platform.architecture ?? "unknown"}`).join(", ")}
                       </div>
@@ -80,12 +80,12 @@ export function ManifestDrawer({ open, repositoryName, manifest, profileId, onCl
 
               {manifest.layers?.length ? (
                 <div className="gc-section">
-                  <div className="gc-section-title">Layers</div>
+                  <div className="gc-section-title">层</div>
                   <ul className="preflight-list">
                     {manifest.layers.map((layer) => (
                       <li className="preflight-item" key={layer.digest}>
                         <span className="font-mono">{layer.digest}</span>
-                        <span className="text-muted" style={{ marginLeft: "auto" }}>{layer.size} bytes</span>
+                        <span className="text-muted" style={{ marginLeft: "auto" }}>{layer.size} 字节</span>
                       </li>
                     ))}
                   </ul>
@@ -93,14 +93,14 @@ export function ManifestDrawer({ open, repositoryName, manifest, profileId, onCl
               ) : null}
 
               <div className="gc-section">
-                <div className="gc-section-title">Raw manifest JSON</div>
+                <div className="gc-section-title">原始清单 JSON</div>
                 <pre className="log-panel" style={{ maxHeight: "320px" }}>{manifest.rawJson}</pre>
               </div>
             </>
           ) : (
             <div className="card" style={{ background: "var(--color-bg-sunken)" }}>
               <div className="card-body">
-                <p className="text-secondary" data-testid="rm-manifest-empty">No manifest selected.</p>
+                <p className="text-secondary" data-testid="rm-manifest-empty">未选择清单。</p>
               </div>
             </div>
           )}
@@ -108,10 +108,10 @@ export function ManifestDrawer({ open, repositoryName, manifest, profileId, onCl
 
         <div className="drawer-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Close
+            关闭
           </button>
           <button type="button" className="btn btn-danger" data-testid="delete-manifest-button" onClick={() => setDeleteOpen(true)}>
-            Delete tag
+            删除标签
           </button>
         </div>
       </div>

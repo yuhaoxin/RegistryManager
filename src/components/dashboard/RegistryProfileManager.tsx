@@ -107,7 +107,7 @@ export function RegistryProfileManager({
   return (
     <div className="card" data-testid="rm-registry-profile-manager">
       <div className="card-header">
-        <div className="card-title">Registry profiles</div>
+        <div className="card-title">Registry 配置</div>
         <button
           type="button"
           className="btn btn-primary btn-sm"
@@ -115,13 +115,13 @@ export function RegistryProfileManager({
           disabled={isFormOpen}
           data-testid="rm-add-profile-button"
         >
-          Add
+          添加
         </button>
       </div>
       <div className="card-body">
         {profiles.length === 0 && !isFormOpen ? (
           <p className="text-secondary" data-testid="rm-no-profiles-message">
-            No registry profiles yet. Add one to get started.
+            还没有 Registry 配置。添加一个即可开始使用。
           </p>
         ) : null}
 
@@ -133,14 +133,14 @@ export function RegistryProfileManager({
               </div>
             ) : null}
             <div className="form-field">
-              <label htmlFor="rm-profile-name">Name</label>
+              <label htmlFor="rm-profile-name">名称</label>
               <input
                 id="rm-profile-name"
                 type="text"
                 className="input"
                 value={form.name}
                 onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                placeholder="e.g. Local registry"
+                placeholder="例如：本地 Registry"
                 required
                 data-testid="rm-profile-name-input"
               />
@@ -159,23 +159,23 @@ export function RegistryProfileManager({
               />
             </div>
             <div className="form-field">
-              <label htmlFor="rm-profile-credential">Credential ref</label>
+              <label htmlFor="rm-profile-credential">凭据引用</label>
               <input
                 id="rm-profile-credential"
                 type="text"
                 className="input"
                 value={form.credentialRef}
                 onChange={(event) => setForm((current) => ({ ...current, credentialRef: event.target.value }))}
-                placeholder="Optional"
+                placeholder="可选"
                 data-testid="rm-profile-credential-input"
               />
             </div>
             <div className="form-actions">
               <button type="submit" className="btn btn-primary btn-sm" disabled={submitting} data-testid="rm-profile-save-button">
-                Save
+                保存
               </button>
               <button type="button" className="btn btn-secondary btn-sm" onClick={cancelForm} data-testid="rm-profile-cancel-button">
-                Cancel
+                取消
               </button>
             </div>
           </form>
@@ -187,7 +187,7 @@ export function RegistryProfileManager({
           </div>
         ) : null}
 
-        <ul className="preflight-list" aria-label="Registry profiles" data-testid="rm-profile-list">
+        <ul className="preflight-list" aria-label="Registry 配置" data-testid="rm-profile-list">
           {profiles.map((profile) => (
             <li
               key={profile.id}
@@ -213,7 +213,7 @@ export function RegistryProfileManager({
                   <span className="registry-picker-identity">
                     <span className="registry-picker-name" title={profile.name}>{profile.name}</span>
                     {profile.credentialRef ? (
-                      <span className="registry-picker-image">Credential: {profile.credentialRef}</span>
+                      <span className="registry-picker-image">凭据：{profile.credentialRef}</span>
                     ) : null}
                   </span>
                 </label>
@@ -230,7 +230,7 @@ export function RegistryProfileManager({
                         disabled={deletingId === profile.id}
                         data-testid="rm-profile-delete-cancel-button"
                       >
-                        Cancel
+                        取消
                       </button>
                       <button
                         type="button"
@@ -242,7 +242,7 @@ export function RegistryProfileManager({
                         disabled={deletingId === profile.id}
                         data-testid="rm-profile-delete-confirm-button"
                       >
-                        {deletingId === profile.id ? "Deleting..." : "Confirm"}
+                        {deletingId === profile.id ? "正在删除..." : "确认"}
                       </button>
                     </>
                   ) : (
@@ -257,7 +257,7 @@ export function RegistryProfileManager({
                         disabled={isFormOpen}
                         data-testid="rm-profile-edit-button"
                       >
-                        Edit
+                        编辑
                       </button>
                       <button
                         type="button"
@@ -270,7 +270,7 @@ export function RegistryProfileManager({
                         disabled={isFormOpen}
                         data-testid="rm-profile-delete-button"
                       >
-                        Delete
+                        删除
                       </button>
                     </>
                   )}
