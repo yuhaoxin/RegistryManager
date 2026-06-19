@@ -8,7 +8,7 @@ Registry 管理器是一个用于管理本地 Docker Registry v2 实例的 Tauri
 - 浏览 Registry v2 端点中的仓库、标签、清单和摘要。
 - 实时检查 Registry 健康/状态，支持手动刷新和离线缓存回退。
 - 通过确认、影响预览和审计日志安全删除清单。
-- 本地存储回收会执行真实的本地 Docker Registry 垃圾回收。
+- 本地存储回收会停止本地 Registry 容器，使用临时容器执行真实的 Docker Registry GC，并在完成后尝试重启原容器。
 - 使用 SQLite 离线缓存已浏览过的仓库和清单。
 - 凭据存储在系统钥匙串中；不会以明文持久化凭据。
 
@@ -98,20 +98,43 @@ docker run -d -p 5000:5000 --name registry registry:2
 
 在应用中创建一个使用本地端点 URL 的配置即可添加 Registry，例如 `http://localhost:5000`。仪表盘会读取所选配置的实时状态，并且只在请求或手动触发刷新时刷新仓库/标签/清单；如果实时读取失败，之前缓存的数据仍可用，并会标记为过期。
 
+## 本地 GC 工作流
+
+当选中的 Registry URL 是本地回环地址（例如 `localhost`、`127.0.0.1` 或 `::1`）时，仪表盘会显示“本地 GC 执行器”。远程 Registry 不会显示 GC 入口，后端也会拒绝对远程 Registry 或远程 Docker 上下文执行破坏性工作流。
+
+运行 GC 前，应用会要求确认停机风险。确认后，桌面端会调用 `run_local_gc` 命令，并执行以下流程：
+
+1. 校验 Registry URL 仅指向本机，并确认 Docker 上下文是本地 Docker Desktop/Engine。
+2. 定位匹配端口、容器名或容器 ID 的 Registry 容器，并记录原容器状态、镜像、挂载、环境变量、重启策略和健康状态。
+3. 确认 Registry 配置文件可读，并检查镜像支持 `registry garbage-collect`。
+4. 停止原 Registry 容器。
+5. 使用相同镜像和存储挂载启动临时容器，执行：
+
+   ```bash
+   registry garbage-collect --delete-untagged /etc/docker/registry/config.yml
+   ```
+
+6. 删除临时 GC 容器，重启原 Registry 容器，并检查 `/v2/` 健康状态。
+7. 将结果写入审计日志，并把缓存中等待 GC 的清单状态更新为 `gc_completed` 或 `gc_failed`。
+
+配置路径按以下顺序解析：容器环境变量 `REGISTRY_CONFIGURATION_PATH`、应用配置中的 `config_path`、默认路径 `/etc/docker/registry/config.yml`。如果 GC 失败，应用会尝试清理临时容器并重启原 Registry；如果自动恢复失败，请按界面和审计日志中的恢复指令手动处理。
+
 ## 安全说明
 
 - 凭据通过操作系统钥匙串存储，不会写入明文项目文件或 SQLite 行。
 - Registry 操作用于本地 Docker Engine/Desktop 上下文。破坏性工作流会拒绝远程 Docker 上下文。
 - 删除和垃圾回收操作会在审计日志中记录状态和错误详情。
+- 本地 GC 会造成 Registry 短暂停机；不要在镜像推送或其他写入操作进行中运行。
 - 不要对生产 Registry 运行破坏性工作流。此 MVP 面向本地 Registry 维护设计。
 
 ## 删除和垃圾回收注意事项
 
 - 清单删除按摘要执行，而不是按标签执行。标签会先解析为不可变清单摘要再删除。
-- 在本地垃圾回收成功完成之前，删除清单不保证释放存储空间。
-- 本地存储回收只执行真实的本地 Docker Registry 垃圾回收。它不会触发或管理远程 Registry 的垃圾回收。
+- 删除清单后，相关标签或摘要会进入 `pending_gc` 状态；在本地 GC 成功完成之前，删除清单不保证释放存储空间。
+- 本地存储回收只执行本机 Docker Registry 容器的真实 GC。它不会触发或管理远程 Registry 的垃圾回收。
+- GC 会停止原 Registry 容器，并使用临时容器挂载同一份存储运行 `registry garbage-collect --delete-untagged`。
 - 本地 GC 依赖 Registry 容器配置、存储挂载和配置路径。如果这些配置错误，命令可能失败且不会回收存储。
-- GC 后可能需要重启 Registry，客户端才能观察到健康的 `/v2/` 端点。
+- GC 完成后应用会尝试重启原 Registry 并检查 `/v2/` 健康状态；失败时请参考审计日志中的恢复指令。
 
 ## 故障排查
 
@@ -139,13 +162,15 @@ curl -fsS http://localhost:5000/v2/
 
 ### GC 失败
 
-检查应用审计条目和 Docker 日志：
+先查看应用中的 GC 时间线、实时日志和审计条目，再检查 Docker 日志：
 
 ```bash
 docker logs registry
 ```
 
-确认 Registry 配置路径存在于容器内，存储挂载已保留，并且镜像支持 `registry garbage-collect`。如果应用在失败前停止了 Registry，请查看日志后手动重启。
+确认 Registry 配置路径存在于容器内，存储挂载已保留，并且镜像支持 `registry garbage-collect`。配置路径通常来自容器环境变量 `REGISTRY_CONFIGURATION_PATH`、应用配置中的 `config_path` 或默认 `/etc/docker/registry/config.yml`。
+
+如果错误发生在停止原容器之后，应用会尝试删除临时 GC 容器并重启原 Registry。若界面显示需要手动恢复，请按提示执行 `docker start <container>`，然后再次检查健康状态。
 
 ### 重启失败
 
