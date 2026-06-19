@@ -33,7 +33,7 @@ export function DockerStatusCard({ status }: DockerStatusCardProps) {
             </div>
           </>
         ) : (
-          <div data-testid="rm-docker-unavailable-empty" role="status">
+          <div data-testid="rm-docker-status-empty" role="status">
             <p className="text-secondary">{status.error ?? "Docker daemon is not reachable."}</p>
           </div>
         )}

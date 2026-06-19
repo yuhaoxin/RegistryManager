@@ -1,104 +1,55 @@
-import { useContext, useMemo, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { RegistryContext } from "../../context/RegistryContext";
 import { EmptyState } from "../common";
 import { DockerStatusCard } from "./DockerStatusCard";
-import { LocalRegistryContainerPicker } from "./LocalRegistryContainerPicker";
+import { RegistryProfileManager } from "./RegistryProfileManager";
 import { RecentActivityCard } from "./RecentActivityCard";
-import { RegistryContainerCard } from "./RegistryContainerCard";
-import { StorageReclaimCard } from "./StorageReclaimCard";
+import { RegistryHealthCard } from "./RegistryHealthCard";
 import { ManifestDrawer } from "../manifest/ManifestDrawer";
 import { RepositoryBrowser } from "../repository/RepositoryBrowser";
 import { TagBrowser } from "../repository/TagBrowser";
 import { LocalGcExecutor } from "../gc/LocalGcExecutor";
-import { AuditLogTable } from "../audit/AuditLogTable";
-import { AuditEvent, DockerStatus, Manifest, RegistryContainer, Repository, Tag } from "../../types";
+import { AuditLogTable, type AuditLogTableHandle } from "../audit/AuditLogTable";
+import type { AuditEvent, DockerStatus, Manifest, Repository, Tag } from "../../types";
+import { isLocalRegistryUrl } from "../../utils/registryUrl";
 
 export interface DashboardLayoutProps {
   dockerStatus?: DockerStatus;
-  containers?: RegistryContainer[];
   repositories?: Repository[];
   recentActivity?: AuditEvent[];
   tags?: Tag[];
   manifest?: Manifest;
-  initialSelectedId?: string;
 }
-const defaultContainers: RegistryContainer[] = [
-  {
-    id: "registry-local",
-    name: "registry",
-    image: "registry:2",
-    status: "running",
-    ports: ["5000:5000"],
-    createdAt: "2 days ago",
-  },
-];
-
-const defaultRepositories: Repository[] = [
-  { name: "alpine", tagCount: 3, size: "12.4 MB", lastUpdated: "1 hour ago" },
-  { name: "nginx", tagCount: 2, size: "67.1 MB", lastUpdated: "3 hours ago" },
-  { name: "redis", tagCount: 4, size: "50.2 MB", lastUpdated: "1 day ago" },
-  { name: "my-app/backend", tagCount: 7, size: "124 MB", lastUpdated: "2 days ago" },
-];
-
-const defaultTags: Tag[] = [
-  { name: "latest", digest: "sha256:abc123…", size: "5.6 MB", created: "2026-06-18" },
-  { name: "3.18", digest: "sha256:def456…", size: "5.4 MB", created: "2026-06-10" },
-];
-
-const defaultManifest: Manifest = {
-  digest: "sha256:abc123def4567890abcdef1234567890abcdef1234567890abcdef1234567890",
-  mediaType: "application/vnd.docker.distribution.manifest.v2+json",
-  size: 528,
-  platform: "linux/arm64",
-  rawJson: JSON.stringify(
-    {
-      schemaVersion: 2,
-      mediaType: "application/vnd.docker.distribution.manifest.v2+json",
-      config: { size: 1472, mediaType: "application/vnd.docker.container.image.v1+json" },
-      layers: [{ size: 2813285, mediaType: "application/vnd.docker.image.rootfs.diff.tar.gzip" }],
-    },
-    null,
-    2,
-  ),
-};
-
-const defaultActivity: AuditEvent[] = [
-  {
-    id: "evt-1",
-    timestamp: "2026-06-18 09:12",
-    action: "Manifest deleted",
-    repository: "alpine",
-    tag: "edge",
-    digest: "sha256:abc…",
-    status: "success",
-  },
-];
 
 export function DashboardLayout({
   dockerStatus,
-  containers,
   repositories,
-  recentActivity = defaultActivity,
+  recentActivity,
   tags,
   manifest,
-  initialSelectedId,
 }: DashboardLayoutProps) {
   const registry = useContext(RegistryContext);
-  const resolvedDockerStatus = dockerStatus ?? registry?.dockerStatus ?? { available: true, version: "29.4.0", context: "default" };
-  const resolvedContainers = containers ?? registry?.containers ?? defaultContainers;
-  const resolvedRepositories = repositories ?? registry?.repositories ?? defaultRepositories;
-  const resolvedTags = tags ?? registry?.tags ?? defaultTags;
-  const resolvedManifest = manifest ?? registry?.manifest ?? defaultManifest;
+  const resolvedDockerStatus = dockerStatus ?? registry?.dockerStatus ?? { reachable: false };
+  const resolvedRepositories = repositories ?? registry?.repositories ?? [];
+  const resolvedTags = tags ?? registry?.tags ?? [];
+  const resolvedManifest = manifest ?? registry?.manifest;
+  const resolvedActivity = recentActivity ?? [];
+  const selectedRegistryUrl = registry?.selectedProfile?.registryUrl;
+  const canRunLocalGc = selectedRegistryUrl ? isLocalRegistryUrl(selectedRegistryUrl) : false;
 
-  const [selectedId, setSelectedId] = useState<string | undefined>(initialSelectedId);
   const [search, setSearch] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<string | undefined>(undefined);
+  const auditLogRef = useRef<AuditLogTableHandle>(null);
 
-  const selectedContainer = useMemo(
-    () => registry?.selectedContainer ?? resolvedContainers.find((c) => c.id === selectedId),
-    [registry?.selectedContainer, resolvedContainers, selectedId],
-  );
+  const refreshAuditLog = () => {
+    void auditLogRef.current?.refresh();
+  };
+
+  useEffect(() => {
+    setSelectedRepo(undefined);
+    setDrawerOpen(false);
+  }, [registry?.selectedProfile?.id]);
 
   const handleRepoClick = (repo: Repository) => {
     setSelectedRepo(repo.name);
@@ -117,12 +68,25 @@ export function DashboardLayout({
     }
   };
 
-  const handleSelect = (id: string) => {
-    setSelectedId(id);
-    void registry?.selectContainer(id);
+  const handleProfileSelect = (profile: import("../../types").RegistryProfile) => {
+    setSelectedRepo(undefined);
+    setDrawerOpen(false);
+    void registry?.selectProfile(profile);
   };
 
-  const hasSelection = Boolean(selectedContainer);
+  const handleProfileCreate = async (input: { name: string; registryUrl: string; credentialRef?: string | null }) => {
+    await registry?.createProfile(input);
+  };
+
+  const handleProfileUpdate = async (profileId: string, input: { name: string; registryUrl: string; credentialRef?: string | null }) => {
+    await registry?.updateProfile(profileId, input);
+  };
+
+  const handleProfileDelete = async (profileId: string) => {
+    await registry?.deleteProfile(profileId);
+  };
+
+  const hasSelection = Boolean(registry?.selectedProfile);
 
   return (
     <div className="dashboard-layout">
@@ -151,10 +115,13 @@ export function DashboardLayout({
           </ul>
         </nav>
 
-        <LocalRegistryContainerPicker
-          containers={resolvedContainers}
-          selectedId={registry?.selectedContainer?.id ?? selectedId}
-          onSelect={handleSelect}
+        <RegistryProfileManager
+          profiles={registry?.profiles ?? []}
+          selectedId={registry?.selectedProfile?.id}
+          onSelect={handleProfileSelect}
+          onCreate={handleProfileCreate}
+          onUpdate={handleProfileUpdate}
+          onDelete={handleProfileDelete}
         />
       </aside>
 
@@ -166,9 +133,14 @@ export function DashboardLayout({
 
         <section className="card-grid" aria-label="Status cards">
           <DockerStatusCard status={resolvedDockerStatus} />
-          <RegistryContainerCard container={selectedContainer} health={registry?.health} />
-          <StorageReclaimCard reclaimableBytes={124_000_000} />
-          <RecentActivityCard events={recentActivity} />
+          <RegistryHealthCard
+            profileName={registry?.selectedProfile?.name}
+            registryUrl={registry?.selectedProfile?.registryUrl}
+            health={registry?.health}
+            disabled={registry?.loading}
+            onRefresh={registry?.refreshHealth}
+          />
+          <RecentActivityCard events={resolvedActivity} />
         </section>
 
         {!hasSelection ? (
@@ -176,31 +148,40 @@ export function DashboardLayout({
             testId="rm-docker-unavailable-empty"
             icon="🐳"
             title="No registry selected"
-            description={
-              <>
-                Select a local <code>registry:2</code> container from the sidebar, or start one with:{" "}
-                <code>docker run -d -p 5000:5000 --name registry registry:2</code>
-              </>
-            }
+            description="Select a registry profile from the sidebar, or add a new one to get started."
           />
         ) : (
           <>
             {registry?.error ? <div className="preflight-item warn" role="status">{registry.error}</div> : null}
 
-            <RepositoryBrowser
-              repositories={resolvedRepositories}
-              search={search}
-              stale={registry?.stale}
+<RepositoryBrowser
+repositories={resolvedRepositories}
+search={search}
+stale={registry?.stale}
               nextCursor={registry?.nextCatalogCursor}
-              onSearchChange={setSearch}
+              profileId={registry?.selectedProfile?.id}
+              registryUrl={registry?.selectedProfile?.registryUrl}
+onSearchChange={setSearch}
               onRepositorySelect={handleRepoClick}
-              onLoadMore={() => void registry?.loadCatalog(registry.nextCatalogCursor)}
-            />
+              onRepositoryDelete={async (repository) => {
+                await registry?.deleteRepository(repository);
+              }}
+              onAuditEventRecorded={refreshAuditLog}
+onLoadMore={() => void registry?.loadCatalog(registry.nextCatalogCursor)}
+/>
 
             <TagBrowser repository={registry?.selectedRepository ?? selectedRepo} tags={resolvedTags} stale={registry?.stale} onSelect={handleTagClick} />
 
-            <LocalGcExecutor containerName={selectedContainer?.name ?? "registry"} profileId={registry?.selectedProfile?.id} />
-            <AuditLogTable />
+            {canRunLocalGc ? (
+              <LocalGcExecutor
+                containerId={registry?.selectedProfile?.containerId}
+                containerName={registry?.selectedProfile?.containerName}
+                profileId={registry?.selectedProfile?.id}
+                registryUrl={selectedRegistryUrl}
+                onAuditEventRecorded={refreshAuditLog}
+              />
+            ) : null}
+            <AuditLogTable ref={auditLogRef} />
           </>
         )}
       </main>
@@ -208,11 +189,12 @@ export function DashboardLayout({
       <ManifestDrawer
         open={drawerOpen}
         repositoryName={selectedRepo ?? "unknown"}
-        manifest={resolvedManifest}
-        profileId={registry?.selectedProfile?.id}
-        onClose={() => setDrawerOpen(false)}
-        onDeleted={() => void registry?.refresh()}
-      />
+            manifest={resolvedManifest}
+            profileId={registry?.selectedProfile?.id}
+            onClose={() => setDrawerOpen(false)}
+            onDeleted={() => void registry?.refresh()}
+            onAuditEventRecorded={refreshAuditLog}
+          />
     </div>
   );
 }
