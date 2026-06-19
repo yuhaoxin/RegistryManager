@@ -71,23 +71,70 @@ jobs:
       - name: Frontend build and typecheck
         run: pnpm build
 
-      - name: Start disposable registry fixture for Docker-backed E2E
-        if: runner.os == 'Linux'
+  e2e:
+    name: E2E / Docker QA
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Allow required pnpm build dependencies
+        run: pnpm config set onlyBuiltDependencies esbuild
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start disposable registry fixture for Docker-backed QA
         run: docker compose -f docker-compose.test.yml up -d registry
 
+      - name: Wait for registry fixture
+        run: |
+          for attempt in {1..30}; do
+            if curl -fsS http://localhost:5001/v2/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker compose -f docker-compose.test.yml logs registry
+          exit 1
+
+      # Local equivalent for real-service Rust tests:
+      # docker compose -f docker-compose.test.yml up -d registry && cargo test -- --ignored
+      - name: Real-registry Rust QA tests
+        run: cargo test -- --ignored
+
       - name: Install Playwright browsers
-        if: runner.os == 'Linux'
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Playwright E2E tests
-        if: runner.os == 'Linux'
         run: pnpm playwright test
 
+      - name: Stop disposable registry fixture
+        if: always()
+        run: docker compose -f docker-compose.test.yml down -v
+
       - name: Upload Playwright report
-        if: failure() && runner.os == 'Linux'
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-${{ matrix.os }}
+          name: playwright-report
           path: |
             playwright-report/
             .sisyphus/evidence/task-9-*.png
@@ -95,10 +142,10 @@ jobs:
           if-no-files-found: ignore
 
       - name: Upload Playwright traces and screenshots
-        if: failure() && runner.os == 'Linux'
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-test-results-${{ matrix.os }}
+          name: playwright-test-results
           path: |
             test-results/
             playwright-report/

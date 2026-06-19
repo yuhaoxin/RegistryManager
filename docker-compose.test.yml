@@ -5,6 +5,10 @@ services:
       - "5001:5000"
     environment:
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Origin: '["*"]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Methods: '["GET", "HEAD", "OPTIONS", "DELETE"]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Allow-Headers: '["Accept", "Authorization", "Cache-Control", "Content-Type"]'
+      REGISTRY_HTTP_HEADERS_Access-Control-Expose-Headers: '["Docker-Content-Digest"]'
     volumes:
       - registry-test-data:/var/lib/registry
 
