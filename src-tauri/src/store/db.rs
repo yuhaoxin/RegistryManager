@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use chrono::Utc;
 use sqlx::{sqlite::SqlitePoolOptions, Row, SqlitePool};
 
 use super::StoreError;
@@ -7,15 +8,18 @@ use super::StoreError;
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS registry_profiles (
     id TEXT PRIMARY KEY NOT NULL,
-    container_id TEXT NOT NULL,
-    container_name TEXT NOT NULL,
-    image TEXT NOT NULL,
+    name TEXT NOT NULL,
     registry_url TEXT NOT NULL,
-    port_mapping TEXT NOT NULL,
+    credential_key TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    container_id TEXT,
+    container_name TEXT,
+    image TEXT,
+    port_mapping TEXT,
     config_path TEXT,
-    storage_mounts TEXT NOT NULL,
-    selected_at TEXT NOT NULL,
-    last_health_check_at TEXT
+    storage_mounts TEXT,
+    selected_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS repository_cache (
@@ -110,23 +114,74 @@ pub async fn migrate_database(pool: &SqlitePool) -> Result<(), StoreError> {
     {
         sqlx::query(statement).execute(pool).await?;
     }
-    ensure_optional_columns(pool).await?;
+    ensure_registry_profile_columns(pool).await?;
+    ensure_manifest_optional_columns(pool).await?;
     Ok(())
 }
 
-async fn ensure_optional_columns(pool: &SqlitePool) -> Result<(), StoreError> {
-    let columns = sqlx::query("PRAGMA table_info(manifest_cache)")
-        .fetch_all(pool)
-        .await?;
-    if !columns
-        .iter()
-        .any(|row| row.try_get::<String, _>("name").ok().as_deref() == Some("gc_status"))
-    {
-        sqlx::query("ALTER TABLE manifest_cache ADD COLUMN gc_status TEXT")
-            .execute(pool)
-            .await?;
+async fn ensure_registry_profile_columns(pool: &SqlitePool) -> Result<(), StoreError> {
+    for (name, definition) in [
+        ("name", "TEXT"),
+        ("credential_key", "TEXT"),
+        ("created_at", "TEXT"),
+        ("updated_at", "TEXT"),
+        ("container_id", "TEXT"),
+        ("container_name", "TEXT"),
+        ("image", "TEXT"),
+        ("port_mapping", "TEXT"),
+        ("config_path", "TEXT"),
+        ("storage_mounts", "TEXT"),
+        ("selected_at", "TEXT"),
+    ] {
+        add_column_if_missing(pool, "registry_profiles", name, definition).await?;
+    }
+
+    let now = Utc::now().to_rfc3339();
+    sqlx::query(
+        r#"
+        UPDATE registry_profiles
+        SET
+            name = COALESCE(NULLIF(TRIM(name), ''), NULLIF(TRIM(container_name), ''), registry_url),
+            created_at = COALESCE(created_at, selected_at, ?),
+            updated_at = COALESCE(updated_at, selected_at, created_at, ?)
+        WHERE name IS NULL
+            OR TRIM(name) = ''
+            OR created_at IS NULL
+            OR updated_at IS NULL
+        "#,
+    )
+    .bind(&now)
+    .bind(&now)
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+async fn ensure_manifest_optional_columns(pool: &SqlitePool) -> Result<(), StoreError> {
+    add_column_if_missing(pool, "manifest_cache", "gc_status", "TEXT").await?;
+    Ok(())
+}
+
+async fn add_column_if_missing(
+    pool: &SqlitePool,
+    table: &str,
+    name: &str,
+    definition: &str,
+) -> Result<(), StoreError> {
+    if !table_has_column(pool, table, name).await? {
+        let statement = format!("ALTER TABLE {table} ADD COLUMN {name} {definition}");
+        sqlx::query(&statement).execute(pool).await?;
     }
     Ok(())
+}
+
+async fn table_has_column(pool: &SqlitePool, table: &str, name: &str) -> Result<bool, StoreError> {
+    let statement = format!("PRAGMA table_info({table})");
+    let columns = sqlx::query(&statement).fetch_all(pool).await?;
+    Ok(columns
+        .iter()
+        .any(|row| row.try_get::<String, _>("name").ok().as_deref() == Some(name)))
 }
 
 fn ensure_parent_dir(path: &Path) -> Result<(), StoreError> {
@@ -135,4 +190,106 @@ fn ensure_parent_dir(path: &Path) -> Result<(), StoreError> {
         std::fs::create_dir_all(parent)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use sqlx::{sqlite::SqlitePoolOptions, Row};
+    use uuid::Uuid;
+
+    use super::migrate_database;
+
+    #[tokio::test]
+    async fn profile_migration_preserves_legacy_registry_url_and_omits_status_fields() {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("in-memory database should connect");
+
+        sqlx::query(
+            r#"
+            CREATE TABLE registry_profiles (
+                id TEXT PRIMARY KEY NOT NULL,
+                container_id TEXT NOT NULL,
+                container_name TEXT NOT NULL,
+                image TEXT NOT NULL,
+                registry_url TEXT NOT NULL,
+                port_mapping TEXT NOT NULL,
+                config_path TEXT,
+                storage_mounts TEXT NOT NULL,
+                selected_at TEXT NOT NULL,
+                last_health_check_at TEXT
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .expect("legacy registry_profiles table should be created");
+
+        let profile_id = Uuid::new_v4();
+        let selected_at = "2026-06-18T12:00:00Z";
+        sqlx::query(
+            r#"
+            INSERT INTO registry_profiles (
+                id, container_id, container_name, image, registry_url, port_mapping,
+                config_path, storage_mounts, selected_at, last_health_check_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(profile_id.to_string())
+        .bind("legacy-container")
+        .bind("legacy-registry")
+        .bind("registry:2")
+        .bind("http://localhost:5000")
+        .bind("5000:5000")
+        .bind(Option::<String>::None)
+        .bind("[]")
+        .bind(selected_at)
+        .bind("2026-06-18T12:05:00Z")
+        .execute(&pool)
+        .await
+        .expect("legacy profile should be inserted");
+
+        migrate_database(&pool)
+            .await
+            .expect("legacy database should migrate");
+
+        let columns = sqlx::query("PRAGMA table_info(registry_profiles)")
+            .fetch_all(&pool)
+            .await
+            .expect("registry profile columns should be readable");
+        let column_names = columns
+            .iter()
+            .map(|row| row.try_get::<String, _>("name").expect("column name"))
+            .collect::<Vec<_>>();
+        for expected in [
+            "id",
+            "name",
+            "registry_url",
+            "credential_key",
+            "created_at",
+            "updated_at",
+            "container_id",
+            "container_name",
+        ] {
+            assert!(
+                column_names.iter().any(|column| column == expected),
+                "registry_profiles should include {expected}, got {column_names:?}"
+            );
+        }
+
+        let profile = crate::store::get_selected_registry_profile(&pool)
+            .await
+            .expect("selected profile should load")
+            .expect("selected legacy profile should exist");
+        assert_eq!(profile.registry_url, "http://localhost:5000");
+
+        let value = serde_json::to_value(&profile).expect("profile should serialize");
+        assert_eq!(value["containerId"], "legacy-container");
+        assert_eq!(value["containerName"], "legacy-registry");
+        assert!(value.get("status").is_none());
+        assert!(value.get("healthStatus").is_none());
+        assert!(value.get("lastHealthCheckAt").is_none());
+    }
 }

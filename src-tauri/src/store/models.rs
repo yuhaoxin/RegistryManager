@@ -6,15 +6,26 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase")]
 pub struct RegistryProfile {
     pub id: Uuid,
-    pub container_id: String,
-    pub container_name: String,
-    pub image: String,
+    pub name: String,
     pub registry_url: String,
-    pub port_mapping: String,
+    pub credential_ref: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub container_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub container_name: Option<String>,
+    #[serde(skip_serializing, default)]
     pub config_path: Option<String>,
-    pub storage_mounts: String,
-    pub selected_at: DateTime<Utc>,
-    pub last_health_check_at: Option<DateTime<Utc>>,
+}
+
+impl RegistryProfile {
+    pub fn credential_lookup_key(&self) -> String {
+        self.credential_ref
+            .clone()
+            .unwrap_or_else(|| self.id.to_string())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -25,6 +36,12 @@ pub struct RepositoryCache {
     pub tag_count: i64,
     pub last_synced_at: Option<DateTime<Utc>>,
     pub sync_status: String,
+}
+
+impl RepositoryCache {
+    pub fn has_tags(&self) -> bool {
+        self.tag_count > 0
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
