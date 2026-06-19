@@ -1,8 +1,6 @@
 use serde::Serialize;
 
-use crate::docker::{
-    discover_registry_containers as discover, DockerClient, RegistryContainerSummary,
-};
+use crate::docker::DockerClient;
 
 use super::AppError;
 
@@ -40,10 +38,4 @@ pub async fn get_docker_status() -> Result<DockerStatus, AppError> {
             error: Some(error.to_string()),
         }),
     }
-}
-
-#[tauri::command]
-pub async fn discover_registry_containers() -> Result<Vec<RegistryContainerSummary>, AppError> {
-    let client = DockerClient::connect_local().await?;
-    Ok(discover(&client).await?)
 }
