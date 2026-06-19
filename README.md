@@ -20,7 +20,7 @@ Registry 管理器是一个用于管理本地 Docker Registry v2 实例的 Tauri
 | Windows | Windows 10+ | 推荐使用带 WSL2 后端的 Docker Desktop。 |
 | Linux | Ubuntu 22.04+ | 需要 Docker Engine 和 Tauri WebKitGTK 依赖。 |
 
-本仓库未配置生产签名、公证和应用商店打包。除非你提供平台证书并单独配置 Tauri 签名，否则发布构建不会签名。
+本仓库未配置生产级 Developer ID 签名、公证和应用商店打包。macOS 发布构建使用 ad-hoc 签名以避免 Apple Silicon 下载产物被 Gatekeeper 直接标记为“已损坏”；如需面向普通用户正式分发，仍需提供 Apple Developer ID 证书并配置 Tauri 公证。
 
 ## 前置条件
 
@@ -58,7 +58,7 @@ pnpm dev
 pnpm tauri build
 ```
 
-Tauri 配置使用产品名 `Registry Manager`、应用标识 `com.yuhaoxin.registry-manager`、1280x800 默认窗口，并启用当前平台可用的安装包目标。推送 `v*` 标签会触发 GitHub Release 工作流，分别构建 macOS `.dmg`、Windows NSIS/MSI、Linux `.deb`/`.AppImage` 产物；这里不声明安装器签名/公证能力。
+Tauri 配置使用产品名 `Registry Manager`、应用标识 `com.yuhaoxin.registry-manager`、1280x800 默认窗口，并启用当前平台可用的安装包目标。推送 `v*` 标签会触发 GitHub Release 工作流，分别构建 macOS `.dmg`、Windows NSIS/MSI、Linux `.deb`/`.AppImage` 产物；macOS 产物使用 ad-hoc 签名，但这里不声明 Developer ID 签名、公证或安装器签名能力。
 
 ## 测试
 
