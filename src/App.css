@@ -725,6 +725,47 @@ a:hover {
   cursor: pointer;
 }
 
+.registry-profile-item {
+  align-items: stretch;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.registry-profile-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.registry-profile-item .registry-picker-row {
+  flex: 1 1 auto;
+}
+
+.registry-profile-item .registry-picker-meta {
+  justify-content: flex-start;
+}
+
+.registry-profile-item .registry-picker-port {
+  width: 100%;
+  max-width: 100%;
+  justify-content: flex-start;
+  font-family: var(--font-mono);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.registry-profile-item .profile-actions {
+  width: 100%;
+  justify-content: stretch;
+  margin-left: 0;
+}
+
+.registry-profile-item .profile-actions .btn {
+  flex: 1 1 0;
+}
+
 .registry-picker-meta {
   display: flex;
   align-items: center;
@@ -923,4 +964,39 @@ a:hover {
   .main-content {
     padding: var(--space-5) var(--space-4);
   }
+}
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-bg-sunken);
+  border-radius: var(--radius-md);
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.form-field label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.profile-actions {
+  display: flex;
+  gap: var(--space-1);
+  margin-left: auto;
+  flex-shrink: 0;
 }
