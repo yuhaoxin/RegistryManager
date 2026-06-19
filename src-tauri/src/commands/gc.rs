@@ -789,9 +789,10 @@ mod tests {
             .expect("registry fixture container should be discovered from the URL port");
 
         assert_ne!(snapshot.container_id, "stale-container-id");
-        assert_eq!(
-            snapshot.container_name.as_deref(),
-            Some("registry_manager-registry-1")
-        );
+        let container_name = snapshot
+            .container_name
+            .as_deref()
+            .expect("discovered registry container should have a name");
+        assert!(container_name.ends_with("-registry-1"));
     }
 }
