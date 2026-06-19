@@ -185,7 +185,24 @@ function mockDeleteManifest(args: CommandArgs) {
     throw { code: "delete_confirmation_mismatch", message: "摘要确认值与所需后缀不匹配。" };
   }
   appendAudit(auditEvent("delete_manifest", "pending_gc", String(args.repository), digest));
+  removeMockManifest(String(args.repository), String(args.reference ?? digest), digest);
   return { digest, status: "pending_gc", pendingGc: true };
+}
+
+function removeMockManifest(repository: string, reference: string, digest: string) {
+  const cachedTags = readJson<Record<string, TagsPage>>(TAG_CACHE_KEY, {});
+  const currentPage = cachedTags[repository] ?? mockTagsPage(repository);
+  const remainingTags = currentPage.tags.filter((tag) => tag.digest !== digest && tag.tag !== reference);
+  localStorage.setItem(TAG_CACHE_KEY, JSON.stringify({
+    ...cachedTags,
+    [repository]: { ...currentPage, tags: remainingTags, lastSyncedAt: new Date().toISOString() },
+  }));
+
+  const cachedCatalog = readJson<CatalogPage | null>(CATALOG_CACHE_KEY, null) ?? mockCatalogPage();
+  const repositories = cachedCatalog.repositories
+    .map((entry) => entry.repositoryName === repository ? { ...entry, tagCount: remainingTags.length, lastSyncedAt: new Date().toISOString() } : entry)
+    .filter((entry) => entry.tagCount > 0);
+  localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({ ...cachedCatalog, repositories, lastSyncedAt: new Date().toISOString() }));
 }
 
 function mockDeleteRepository(repository: string): DeleteRepositoryResult {
@@ -320,6 +337,7 @@ function mockCatalogPage(): CatalogPage {
   if (isOffline() && cached) {
     return { ...cached, stale: true, error: "Registry 离线。" };
   }
+  if (cached) return { ...cached, stale: false, error: undefined };
 
   const now = new Date().toISOString();
   const page: CatalogPage = {
@@ -339,6 +357,7 @@ function mockTagsPage(repository: string): TagsPage {
   if (isOffline() && cached[repository]) {
     return { ...cached[repository], stale: true, error: "Registry 离线。" };
   }
+  if (cached[repository]) return { ...cached[repository], stale: false, error: undefined };
 
   const now = new Date().toISOString();
   const page: TagsPage = {
@@ -502,12 +521,16 @@ async function deleteRealRepository(profile: RegistryProfile, repository: string
     if (response.ok || response.status === 202 || response.status === 404) {
       deletedDigests.push(digest);
       digestResults.push({ digest, tags, status: "pending_gc", pendingGc: true });
-      tags.forEach((tag) => tagResults.push({ tag, digest, status: "pending_gc" }));
+      tags.forEach((tag) => {
+        tagResults.push({ tag, digest, status: "pending_gc" });
+      });
     } else {
       const result = { digest, tags, status: "failure", pendingGc: false, error: `DELETE 返回 ${response.status}。` };
       failedDigests.push(result);
       digestResults.push(result);
-      tags.forEach((tag) => tagResults.push({ tag, digest, status: "failure", error: result.error }));
+      tags.forEach((tag) => {
+        tagResults.push({ tag, digest, status: "failure", error: result.error });
+      });
     }
   }
 
