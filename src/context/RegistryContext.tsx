@@ -1,11 +1,10 @@
 import { createContext, useContext } from "react";
-import type { DockerStatus, Manifest, RegistryContainer, RegistryHealth, RegistryProfile, Repository, Tag } from "../types";
+import type { DeleteRepositoryResult, DockerStatus, Manifest, RegistryHealth, RegistryProfile, Repository, Tag } from "../types";
 
 export interface RegistryContextValue {
   dockerStatus: DockerStatus;
-  containers: RegistryContainer[];
+  profiles: RegistryProfile[];
   selectedProfile?: RegistryProfile;
-  selectedContainer?: RegistryContainer;
   health?: RegistryHealth;
   repositories: Repository[];
   tags: Tag[];
@@ -15,11 +14,17 @@ export interface RegistryContextValue {
   loading: boolean;
   error?: string;
   nextCatalogCursor?: string;
-  selectContainer: (containerId: string) => Promise<void>;
+  loadProfiles: () => Promise<void>;
+  createProfile: (input: { name: string; registryUrl: string; credentialRef?: string | null }) => Promise<RegistryProfile>;
+  updateProfile: (profileId: string, input: { name: string; registryUrl: string; credentialRef?: string | null }) => Promise<RegistryProfile>;
+  deleteProfile: (profileId: string) => Promise<void>;
+  selectProfile: (profile: RegistryProfile) => Promise<void>;
+  refreshHealth: () => Promise<void>;
   loadCatalog: (cursor?: string) => Promise<void>;
   selectRepository: (repository: string) => Promise<void>;
   openManifest: (repository: string, reference: string) => Promise<void>;
   refresh: () => Promise<void>;
+  deleteRepository: (repository: string) => Promise<DeleteRepositoryResult | undefined>;
   cancelRefresh: () => Promise<void>;
 }
 
