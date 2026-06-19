@@ -9,7 +9,7 @@ e2e/
 ├── app.spec.ts                # App shell rendering
 ├── browse.spec.ts             # Repository, tag, and manifest browsing
 ├── dashboard.spec.ts          # Empty states and search
-├── discovery.spec.ts          # Local registry container discovery
+├── discovery.spec.ts          # Manual registry profile selection
 ├── local-gc.spec.ts           # Successful local GC workflow
 ├── local-gc-failure.spec.ts   # GC failure and recovery messaging
 ├── offline-cache.spec.ts      # Stale cache when registry is offline
@@ -25,7 +25,7 @@ e2e/
 | App shell visibility | `app.spec.ts` |
 | Browse repositories, tags, manifests | `browse.spec.ts` |
 | Dashboard empty state and search | `dashboard.spec.ts` |
-| Registry container discovery and selection | `discovery.spec.ts` |
+| Manual registry profile selection | `discovery.spec.ts` |
 | Successful local GC timeline and logs | `local-gc.spec.ts` |
 | GC failure recovery instructions | `local-gc-failure.spec.ts` |
 | Offline cache banner and stale data | `offline-cache.spec.ts` |

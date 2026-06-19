@@ -68,6 +68,7 @@ Registry Manager is a Tauri v2 desktop application for managing local Docker Reg
 - **Component naming:** PascalCase files (`DashboardLayout.tsx`), `use`-prefixed hooks, `rm-` prefixed `data-testid`.
 - **Rust naming:** `snake_case` modules/functions, PascalCase types. `serde(rename_all = "camelCase")` for frontend-facing structs.
 - **Tests:** Vitest `src/**/*.test.{ts,tsx}` with jsdom/globals; Playwright `e2e/*.spec.ts`; Rust `cargo test` with `#[tokio::test]` for async.
+- **Mandatory post-change testing:** After any new feature, behavior change, or bug fix, run the relevant unit tests and a Playwright test against an actual local Registry v2 instance. Mock-only Playwright/localStorage validation is not sufficient for completion.
 - **Mock layer:** `useTauriCommand.ts` contains a browser mock fallback controlled by `localStorage` keys (`rm-mock-*`). This mock lives in production code, not test utilities.
 
 ## ANTI-PATTERNS (THIS PROJECT)

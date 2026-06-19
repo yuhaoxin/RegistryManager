@@ -1,11 +1,12 @@
 # Registry Manager
 
-Registry Manager is a Tauri v2 desktop application for managing local Docker Registry v2 instances. It focuses on safe local workflows: discovering registry containers on the local Docker Engine, browsing repositories and manifests, deleting manifests by digest, executing local storage reclaim, and preserving audit/cache state for offline visibility.
+Registry Manager is a Tauri v2 desktop application for managing local Docker Registry v2 instances. It focuses on safe local workflows: manually registering local Registry v2 URLs, browsing repositories and manifests, deleting manifests by digest, executing local storage reclaim, and preserving audit/cache state for offline visibility.
 
 ## Features
 
-- Local Docker registry discovery from Docker Desktop or Docker Engine.
+- Manual local Registry v2 URL profile management.
 - Repository, tag, manifest, and digest browsing for Registry v2 endpoints.
+- Live registry health/status checks with manual refresh and offline cache fallback.
 - Safe manifest deletion with confirmation, impact preview, and audit logging.
 - Local Storage Reclaim that executes real local Docker registry garbage collection.
 - Offline SQLite cache for previously browsed repositories and manifests.
@@ -95,6 +96,8 @@ docker run -d -p 5000:5000 --name registry registry:2
 
 If the name `registry` or port `5000` is already in use, remove or rename your existing test container, or use the repository test fixture on `localhost:5001` where appropriate.
 
+Add the registry in the app by creating a profile with the local endpoint URL, for example `http://localhost:5000`. The dashboard reads live status for the selected profile and refreshes repositories/tags/manifests only when requested or when you manually trigger refresh actions; if live reads fail, previously cached data remains available and is marked as stale.
+
 ## Security notes
 
 - Credentials are stored through the operating system keyring, not plaintext project files or SQLite rows.
@@ -114,15 +117,15 @@ If the name `registry` or port `5000` is already in use, remove or rename your e
 
 ### Docker daemon unavailable
 
-Start Docker Desktop or Docker Engine, then retry discovery. On Linux, verify the daemon with `docker ps`.
+Start Docker Desktop or Docker Engine before running Docker-backed workflows such as Local Storage Reclaim. On Linux, verify the daemon with `docker ps`.
 
 ### Docker permission errors
 
 Ensure your user can access the Docker socket. On Linux, add the user to the `docker` group and start a new login session. Running with `sudo` can work for diagnostics, but it is not recommended for normal desktop app use because it changes environment and credential access.
 
-### Registry container not found
+### Registry URL unavailable
 
-Ensure a `registry:2` container is running locally and exposes a Registry v2 endpoint, for example:
+Ensure the selected manual profile points to a local Registry v2 endpoint and that the registry is running, for example:
 
 ```bash
 docker run -d -p 5000:5000 --name registry registry:2

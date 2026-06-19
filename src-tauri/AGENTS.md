@@ -46,7 +46,7 @@ src-tauri/src/
 
 - Never add a command without registering it in `lib.rs` (`generate_handler!`).
 - Never allow remote Docker contexts; reject `tcp://`, `http*://`, `ssh://`.
-- Never allow remote registry targets for delete/GC; enforce loopback or container bindings.
+- Never allow remote registry targets for delete/GC; enforce loopback registry URLs.
 - Never store credentials in plaintext; route through `CredentialStore` → OS keyring.
 - Never run concurrent GC on the same container; use `AppState.gc_locks`.
 - Never bypass timeouts on registry API or refresh calls.
