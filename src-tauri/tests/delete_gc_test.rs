@@ -7,17 +7,17 @@ use registry_manager_lib::store::{
 use uuid::Uuid;
 
 fn test_profile() -> RegistryProfile {
+    let now = Utc::now();
     RegistryProfile {
         id: Uuid::new_v4(),
-        container_id: "fixture-registry".to_string(),
-        container_name: "registry-test".to_string(),
-        image: "registry:2".to_string(),
+        name: "registry-test".to_string(),
         registry_url: "http://localhost:5001".to_string(),
-        port_mapping: "5001:5000".to_string(),
+        credential_ref: None,
+        created_at: now,
+        updated_at: now,
+        container_id: Some("fixture-registry".to_string()),
+        container_name: Some("registry-test".to_string()),
         config_path: None,
-        storage_mounts: "[]".to_string(),
-        selected_at: Utc::now(),
-        last_health_check_at: None,
     }
 }
 
@@ -61,7 +61,7 @@ async fn delete_audit_and_pending_gc_records_round_trip() {
             timestamp: Utc::now(),
             action: AuditAction::DeleteManifest,
             registry_id: Some(profile.id),
-            container_id: Some(profile.container_id.clone()),
+            container_id: profile.container_id.clone(),
             repository_name: Some("alpine".to_string()),
             tag: Some("latest".to_string()),
             digest: Some("sha256:abc123def4567890".to_string()),
