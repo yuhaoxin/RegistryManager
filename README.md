@@ -58,7 +58,7 @@ pnpm dev
 pnpm tauri build
 ```
 
-Tauri 配置使用产品名 `Registry Manager`、应用标识 `com.yuhaoxin.registry-manager`、1280x800 默认窗口，并在当前 MVP 构建中使用 macOS `.app` 包目标。Windows 和 Linux 支持通过平台矩阵与 CI 检查跟踪；这里不声明安装器签名/公证能力。
+Tauri 配置使用产品名 `Registry Manager`、应用标识 `com.yuhaoxin.registry-manager`、1280x800 默认窗口，并启用当前平台可用的安装包目标。推送 `v*` 标签会触发 GitHub Release 工作流，分别构建 macOS `.dmg`、Windows NSIS/MSI、Linux `.deb`/`.AppImage` 产物；这里不声明安装器签名/公证能力。
 
 ## 测试
 
