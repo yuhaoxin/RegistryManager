@@ -15,7 +15,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             commands::docker::get_docker_status,
-            commands::docker::discover_registry_containers,
+            commands::registry::list_registry_profiles,
+            commands::registry::create_registry_profile,
+            commands::registry::update_registry_profile,
+            commands::registry::delete_registry_profile,
             commands::registry::select_registry_profile,
             commands::registry::set_registry_credentials,
             commands::registry::clear_registry_credentials,
@@ -30,6 +33,7 @@ pub fn run() {
             commands::cache::get_cached_tags,
             commands::delete::get_delete_impact,
             commands::delete::delete_manifest,
+            commands::delete::delete_repository,
             commands::gc::run_local_gc,
             commands::audit::list_audit_events,
         ])

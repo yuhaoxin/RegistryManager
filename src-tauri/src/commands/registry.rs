@@ -9,32 +9,46 @@ use url::Url;
 use uuid::Uuid;
 
 use crate::credentials::{CredentialStore, RegistryCredential, SystemKeyring};
-use crate::docker::{discover_registry_containers, DockerClient, RegistryContainerSummary};
 use crate::registry::{LayerSummary, Manifest, PlatformSummary, RegistryClient, RegistryError};
 use crate::store::{
-    get_registry_profile as load_registry_profile, get_selected_registry_profile as load_selected,
-    list_manifest_cache, list_repository_cache, save_registry_profile,
-    update_registry_health_check, upsert_manifest_cache, upsert_repository_cache, ManifestCache,
-    RegistryProfile, RepositoryCache,
+    delete_registry_profile as remove_registry_profile, delete_repository_cache,
+    get_registry_profile as load_registry_profile, get_registry_profile_by_url,
+    get_selected_registry_profile as load_selected, list_manifest_cache,
+    list_registry_profiles as load_registry_profiles, list_repository_cache, save_registry_profile,
+    select_registry_profile as mark_registry_profile_selected, upsert_manifest_cache,
+    upsert_repository_cache, ManifestCache, RegistryProfile, RepositoryCache,
 };
 
 use super::{AppError, AppState};
 
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+const REQUEST_TIMEOUT: Duration = if cfg!(test) {
+    Duration::from_millis(200)
+} else {
+    Duration::from_secs(10)
+};
 const REFRESH_TIMEOUT: Duration = Duration::from_secs(30);
 const PAGE_SIZE: u32 = 25;
 const TAG_COUNT_SCAN_LIMIT: u32 = 100;
+const SYNC_STATUS_FRESH: &str = "fresh";
+const SYNC_STATUS_TAG_COUNT_STALE: &str = "tag_count_stale";
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegistryProfileInput {
-    pub container_id: String,
-    pub container_name: String,
-    pub image: String,
+    pub name: Option<String>,
     pub registry_url: String,
-    pub port_mapping: String,
+    pub credential_ref: Option<String>,
+    pub container_id: Option<String>,
+    pub container_name: Option<String>,
     pub config_path: Option<String>,
-    pub storage_mounts: String,
+}
+
+struct NormalizedRegistryProfileInput {
+    name: Option<String>,
+    registry_url: String,
+    credential_ref: Option<String>,
+    container_name: Option<String>,
+    config_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -107,27 +121,43 @@ pub struct RefreshResult {
 }
 
 #[tauri::command]
+pub async fn list_registry_profiles(
+    state: State<'_, AppState>,
+) -> Result<Vec<RegistryProfile>, AppError> {
+    list_registry_profiles_for_state(&state).await
+}
+
+#[tauri::command]
+pub async fn create_registry_profile(
+    profile: RegistryProfileInput,
+    state: State<'_, AppState>,
+) -> Result<RegistryProfile, AppError> {
+    create_registry_profile_for_state(profile, &state).await
+}
+
+#[tauri::command]
+pub async fn update_registry_profile(
+    profile_id: String,
+    profile: RegistryProfileInput,
+    state: State<'_, AppState>,
+) -> Result<RegistryProfile, AppError> {
+    update_registry_profile_for_state(&profile_id, profile, &state).await
+}
+
+#[tauri::command]
+pub async fn delete_registry_profile(
+    profile_id: String,
+    state: State<'_, AppState>,
+) -> Result<bool, AppError> {
+    delete_registry_profile_for_state(&profile_id, &state).await
+}
+
+#[tauri::command]
 pub async fn select_registry_profile(
     profile: RegistryProfileInput,
     state: State<'_, AppState>,
 ) -> Result<RegistryProfile, AppError> {
-    ensure_local_registry_target(&profile.registry_url).await?;
-
-    let profile = RegistryProfile {
-        id: Uuid::new_v4(),
-        container_id: profile.container_id,
-        container_name: profile.container_name,
-        image: profile.image,
-        registry_url: profile.registry_url,
-        port_mapping: profile.port_mapping,
-        config_path: profile.config_path,
-        storage_mounts: profile.storage_mounts,
-        selected_at: Utc::now(),
-        last_health_check_at: None,
-    };
-
-    save_registry_profile(&state.pool, &profile).await?;
-    Ok(profile)
+    select_registry_profile_for_state(profile, &state).await
 }
 
 #[tauri::command]
@@ -147,7 +177,7 @@ pub async fn set_registry_credentials(
     }
 
     SystemKeyring.save(
-        &profile.id.to_string(),
+        &profile.credential_lookup_key(),
         &RegistryCredential {
             username,
             secret: password,
@@ -162,7 +192,7 @@ pub async fn clear_registry_credentials(
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     let profile = require_profile(&state, &profile_id).await?;
-    SystemKeyring.delete(&profile.id.to_string())?;
+    SystemKeyring.delete(&profile.credential_lookup_key())?;
     Ok(())
 }
 
@@ -178,58 +208,23 @@ pub async fn check_registry_health(
     profile_id: String,
     state: State<'_, AppState>,
 ) -> Result<RegistryHealth, AppError> {
-    let profile = require_profile(&state, &profile_id).await?;
+    check_registry_health_for_state(&profile_id, &state).await
+}
+
+async fn check_registry_health_for_state(
+    profile_id: &str,
+    state: &AppState,
+) -> Result<RegistryHealth, AppError> {
+    let profile = require_profile(state, profile_id).await?;
     let checked_at = Utc::now();
-
-    let docker = match DockerClient::connect_local().await {
-        Ok(client) => client,
-        Err(error) => {
-            return Ok(RegistryHealth {
-                reachable: false,
-                status: "docker_unavailable".to_string(),
-                message: error.to_string(),
-                checked_at,
-            })
-        }
-    };
-
-    match find_container(&docker, &profile.container_id).await {
-        Ok(Some(container)) if container.state.as_deref() != Some("running") => {
-            return Ok(RegistryHealth {
-                reachable: false,
-                status: "container_stopped".to_string(),
-                message: format!(
-                    "Container {} is {}.",
-                    container.name,
-                    container.state.unwrap_or_else(|| "not running".to_string())
-                ),
-                checked_at,
-            })
-        }
-        Ok(Some(_)) => {}
-        Ok(None) => {
-            return Ok(RegistryHealth {
-                reachable: false,
-                status: "container_not_found".to_string(),
-                message: "Selected registry container is no longer available.".to_string(),
-                checked_at,
-            })
-        }
-        Err(error) => return Err(error),
-    }
-
-    ensure_local_registry_target(&profile.registry_url).await?;
     let client = registry_client_for_profile(&profile)?;
     match timeout(REQUEST_TIMEOUT, client.ping()).await {
-        Ok(Ok(())) => {
-            update_registry_health_check(&state.pool, profile.id, checked_at).await?;
-            Ok(RegistryHealth {
-                reachable: true,
-                status: "ok".to_string(),
-                message: "/v2/ responded successfully.".to_string(),
-                checked_at,
-            })
-        }
+        Ok(Ok(())) => Ok(RegistryHealth {
+            reachable: true,
+            status: "ok".to_string(),
+            message: "/v2/ responded successfully.".to_string(),
+            checked_at,
+        }),
         Ok(Err(RegistryError::UnexpectedStatus(status))) => Ok(RegistryHealth {
             reachable: false,
             status: "registry_api_error".to_string(),
@@ -258,16 +253,30 @@ pub async fn list_catalog(
     last: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<CatalogPage, AppError> {
-    let profile = require_profile(&state, &profile_id).await?;
-    ensure_local_registry_target(&profile.registry_url).await?;
+    list_catalog_for_state(&profile_id, n, last, &state).await
+}
+
+async fn list_catalog_for_state(
+    profile_id: &str,
+    n: Option<u32>,
+    last: Option<String>,
+    state: &AppState,
+) -> Result<CatalogPage, AppError> {
+    let profile = require_profile(state, profile_id).await?;
     let client = registry_client_for_profile(&profile)?;
     let page_size = n.unwrap_or(PAGE_SIZE).min(PAGE_SIZE);
 
     match timeout(REQUEST_TIMEOUT, client.list_catalog(Some(page_size), last)).await {
         Ok(Ok(catalog)) => {
             let synced_at = Utc::now();
-            let mut repositories = Vec::with_capacity(catalog.repositories.len());
-            for repository_name in catalog.repositories {
+            let catalog_repositories = catalog.repositories;
+            let next_last = if catalog_repositories.len() == page_size as usize {
+                catalog_repositories.last().cloned()
+            } else {
+                None
+            };
+            let mut repositories = Vec::with_capacity(catalog_repositories.len());
+            for repository_name in catalog_repositories {
                 let (tag_count, sync_status) =
                     repository_tag_count(&state.pool, profile.id, &client, &repository_name)
                         .await?;
@@ -278,10 +287,21 @@ pub async fn list_catalog(
                     last_synced_at: Some(synced_at),
                     sync_status: sync_status.to_string(),
                 };
+
+                if !cache.has_tags() {
+                    prune_zero_tag_repository_cache(
+                        &state.pool,
+                        profile.id,
+                        &cache.repository_name,
+                        sync_status,
+                    )
+                    .await?;
+                    continue;
+                }
+
                 upsert_repository_cache(&state.pool, &cache).await?;
                 repositories.push(cache);
             }
-            let next_last = next_cursor(&repositories, page_size, |repo| &repo.repository_name);
 
             Ok(CatalogPage {
                 repositories,
@@ -291,9 +311,9 @@ pub async fn list_catalog(
                 error: None,
             })
         }
-        Ok(Err(error)) => cached_catalog_page(&state, profile.id, error.to_string()).await,
+        Ok(Err(error)) => cached_catalog_page(state, profile.id, error.to_string()).await,
         Err(_) => {
-            cached_catalog_page(&state, profile.id, "catalog request timed out".to_string()).await
+            cached_catalog_page(state, profile.id, "catalog request timed out".to_string()).await
         }
     }
 }
@@ -307,7 +327,6 @@ pub async fn list_tags(
     state: State<'_, AppState>,
 ) -> Result<TagsPage, AppError> {
     let profile = require_profile(&state, &profile_id).await?;
-    ensure_local_registry_target(&profile.registry_url).await?;
     let client = registry_client_for_profile(&profile)?;
     let page_size = n.unwrap_or(PAGE_SIZE);
 
@@ -333,7 +352,7 @@ pub async fn list_tags(
                 repository_name: repository.clone(),
                 tag_count: existing.len() as i64,
                 last_synced_at: Some(synced_at),
-                sync_status: "fresh".to_string(),
+                sync_status: SYNC_STATUS_FRESH.to_string(),
             };
             upsert_repository_cache(&state.pool, &repo_cache).await?;
 
@@ -367,7 +386,6 @@ pub async fn get_manifest(
     state: State<'_, AppState>,
 ) -> Result<ManifestSummary, AppError> {
     let profile = require_profile(&state, &profile_id).await?;
-    ensure_local_registry_target(&profile.registry_url).await?;
     let client = registry_client_for_profile(&profile)?;
 
     match timeout(
@@ -488,16 +506,183 @@ pub async fn cancel_refresh(
     Ok(false)
 }
 
+async fn list_registry_profiles_for_state(
+    state: &AppState,
+) -> Result<Vec<RegistryProfile>, AppError> {
+    Ok(load_registry_profiles(&state.pool).await?)
+}
+
+async fn create_registry_profile_for_state(
+    profile: RegistryProfileInput,
+    state: &AppState,
+) -> Result<RegistryProfile, AppError> {
+    let input = normalize_profile_input(profile)?;
+    if let Some(existing) = get_registry_profile_by_url(&state.pool, &input.registry_url).await? {
+        return Ok(existing);
+    }
+
+    let now = Utc::now();
+    let profile = RegistryProfile {
+        id: Uuid::new_v4(),
+        name: input.name.unwrap_or_else(|| input.registry_url.clone()),
+        registry_url: input.registry_url,
+        credential_ref: input.credential_ref,
+        created_at: now,
+        updated_at: now,
+        container_id: None,
+        container_name: input.container_name,
+        config_path: input.config_path,
+    };
+
+    save_registry_profile(&state.pool, &profile).await?;
+    Ok(profile)
+}
+
+async fn update_registry_profile_for_state(
+    profile_id: &str,
+    profile: RegistryProfileInput,
+    state: &AppState,
+) -> Result<RegistryProfile, AppError> {
+    let input = normalize_profile_input(profile)?;
+    let mut existing = require_profile(state, profile_id).await?;
+    if input.registry_url != existing.registry_url {
+        if let Some(other) = get_registry_profile_by_url(&state.pool, &input.registry_url).await? {
+            if other.id != existing.id {
+                return Err(duplicate_registry_url_error());
+            }
+        }
+    }
+    existing.name = input.name.unwrap_or_else(|| input.registry_url.clone());
+    existing.registry_url = input.registry_url;
+    existing.credential_ref = input.credential_ref;
+    existing.container_id = None;
+    existing.container_name = input.container_name;
+    if let Some(config_path) = input.config_path {
+        existing.config_path = Some(config_path);
+    }
+    existing.updated_at = Utc::now();
+
+    save_registry_profile(&state.pool, &existing).await?;
+    Ok(existing)
+}
+
+async fn delete_registry_profile_for_state(
+    profile_id: &str,
+    state: &AppState,
+) -> Result<bool, AppError> {
+    let id = Uuid::parse_str(profile_id)?;
+    Ok(remove_registry_profile(&state.pool, id).await?)
+}
+
+async fn select_registry_profile_for_state(
+    profile: RegistryProfileInput,
+    state: &AppState,
+) -> Result<RegistryProfile, AppError> {
+    let input = normalize_profile_input(profile)?;
+    let selected_at = Utc::now();
+    let profile = match get_registry_profile_by_url(&state.pool, &input.registry_url).await? {
+        Some(mut existing) => {
+            if let Some(name) = input.name {
+                existing.name = name;
+            }
+            if let Some(credential_ref) = input.credential_ref {
+                existing.credential_ref = Some(credential_ref);
+            }
+            existing.container_id = None;
+            existing.container_name = input.container_name;
+            if let Some(config_path) = input.config_path {
+                existing.config_path = Some(config_path);
+            }
+            existing.updated_at = selected_at;
+            save_registry_profile(&state.pool, &existing).await?;
+            existing
+        }
+        None => {
+            let new_profile = RegistryProfile {
+                id: Uuid::new_v4(),
+                name: input.name.unwrap_or_else(|| input.registry_url.clone()),
+                registry_url: input.registry_url,
+                credential_ref: input.credential_ref,
+                created_at: selected_at,
+                updated_at: selected_at,
+                container_id: None,
+                container_name: input.container_name,
+                config_path: input.config_path,
+            };
+            save_registry_profile(&state.pool, &new_profile).await?;
+            new_profile
+        }
+    };
+
+    mark_registry_profile_selected(&state.pool, profile.id, selected_at).await?;
+    load_registry_profile(&state.pool, profile.id)
+        .await?
+        .ok_or_else(profile_not_found_error)
+}
+
 async fn require_profile(state: &AppState, profile_id: &str) -> Result<RegistryProfile, AppError> {
     let id = Uuid::parse_str(profile_id)?;
     load_registry_profile(&state.pool, id)
         .await?
-        .ok_or_else(|| {
-            AppError::new(
-                "profile_not_found",
-                "Selected registry profile was not found.",
-            )
-        })
+        .ok_or_else(profile_not_found_error)
+}
+
+fn normalize_profile_input(
+    input: RegistryProfileInput,
+) -> Result<NormalizedRegistryProfileInput, AppError> {
+    Ok(NormalizedRegistryProfileInput {
+        name: optional_trimmed(input.name),
+        registry_url: normalize_registry_url(&input.registry_url)?,
+        credential_ref: optional_trimmed(input.credential_ref),
+        container_name: optional_trimmed(input.container_name),
+        config_path: optional_trimmed(input.config_path),
+    })
+}
+
+fn normalize_registry_url(value: &str) -> Result<String, AppError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::new(
+            "invalid_registry_url",
+            "Registry URL is required.",
+        ));
+    }
+
+    let url = Url::parse(trimmed)
+        .map_err(|_| AppError::new("invalid_registry_url", "Invalid registry URL."))?;
+    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
+        return Err(AppError::new(
+            "invalid_registry_url",
+            "Registry URL must be an HTTP(S) URL with a host.",
+        ));
+    }
+
+    Ok(trimmed.trim_end_matches('/').to_string())
+}
+
+fn optional_trimmed(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
+fn profile_not_found_error() -> AppError {
+    AppError::new(
+        "profile_not_found",
+        "Selected registry profile was not found.",
+    )
+}
+
+fn duplicate_registry_url_error() -> AppError {
+    AppError::new(
+        "duplicate_registry_url",
+        "A registry profile with this URL already exists.",
+    )
 }
 
 pub(crate) async fn ensure_local_registry_target(registry_url: &str) -> Result<(), AppError> {
@@ -511,10 +696,6 @@ pub(crate) async fn ensure_local_registry_target(registry_url: &str) -> Result<(
         return Ok(());
     }
 
-    if matches_discovered_registry_binding(&url).await {
-        return Ok(());
-    }
-
     Err(remote_registry_not_allowed(registry_url))
 }
 
@@ -522,7 +703,7 @@ pub(crate) fn registry_client_for_profile(
     profile: &RegistryProfile,
 ) -> Result<RegistryClient, AppError> {
     let client = RegistryClient::new(profile.registry_url.clone());
-    let Some(credential) = SystemKeyring.load(&profile.id.to_string())? else {
+    let Some(credential) = SystemKeyring.load(&profile.credential_lookup_key())? else {
         return Ok(client);
     };
 
@@ -542,72 +723,12 @@ fn is_loopback_host(host: &str) -> bool {
             .unwrap_or(false)
 }
 
-async fn matches_discovered_registry_binding(url: &Url) -> bool {
-    let Some(host) = url.host_str() else {
-        return false;
-    };
-    let Some(port) = url.port_or_known_default() else {
-        return false;
-    };
-    let Ok(docker) = DockerClient::connect_local().await else {
-        return false;
-    };
-    let Ok(containers) = discover_registry_containers(&docker).await else {
-        return false;
-    };
-
-    containers.iter().any(|container| {
-        container
-            .registry_url
-            .as_deref()
-            .is_some_and(|registry_url| registry_url_matches(registry_url, host, port))
-            || container.ports.iter().any(|binding| {
-                binding.host_port == Some(port)
-                    && binding
-                        .host_ip
-                        .as_deref()
-                        .is_some_and(|binding_host| hosts_equal(binding_host, host))
-            })
-    })
-}
-
-fn registry_url_matches(registry_url: &str, host: &str, port: u16) -> bool {
-    Url::parse(registry_url)
-        .ok()
-        .and_then(|url| {
-            Some((
-                url.host_str().map(str::to_string)?,
-                url.port_or_known_default()?,
-            ))
-        })
-        .is_some_and(|(registry_host, registry_port)| {
-            registry_port == port && hosts_equal(&registry_host, host)
-        })
-}
-
-fn hosts_equal(left: &str, right: &str) -> bool {
-    match (left.parse::<IpAddr>(), right.parse::<IpAddr>()) {
-        (Ok(left), Ok(right)) => left == right,
-        _ => left.eq_ignore_ascii_case(right),
-    }
-}
-
 fn remote_registry_not_allowed(registry_url: &str) -> AppError {
     AppError::with_details(
         "REMOTE_REGISTRY_NOT_ALLOWED",
         "Only local Docker registry targets are allowed.",
-        format!("Registry URL is not local or discovered from local Docker: {registry_url}"),
+        format!("Registry URL is not loopback-local: {registry_url}"),
     )
-}
-
-async fn find_container(
-    client: &DockerClient,
-    container_id: &str,
-) -> Result<Option<RegistryContainerSummary>, AppError> {
-    let containers = discover_registry_containers(client).await?;
-    Ok(containers
-        .into_iter()
-        .find(|container| container.id == container_id || container.id.starts_with(container_id)))
 }
 
 async fn cached_catalog_page(
@@ -737,7 +858,6 @@ async fn refresh_profile_catalog(
     pool: sqlx::SqlitePool,
     profile: RegistryProfile,
 ) -> Result<usize, AppError> {
-    ensure_local_registry_target(&profile.registry_url).await?;
     let client = registry_client_for_profile(&profile)?;
     let mut last = None;
     let mut refreshed = 0;
@@ -752,6 +872,12 @@ async fn refresh_profile_catalog(
         for repository_name in &catalog.repositories {
             let (tag_count, sync_status) =
                 repository_tag_count(&pool, profile.id, &client, repository_name).await?;
+            if tag_count == 0 {
+                prune_zero_tag_repository_cache(&pool, profile.id, repository_name, sync_status)
+                    .await?;
+                continue;
+            }
+
             upsert_repository_cache(
                 &pool,
                 &RepositoryCache {
@@ -787,14 +913,27 @@ async fn repository_tag_count(
     )
     .await
     {
-        Ok(Ok(tags)) => Ok((tags.tags.len() as i64, "fresh")),
+        Ok(Ok(tags)) => Ok((tags.tags.len() as i64, SYNC_STATUS_FRESH)),
         Ok(Err(_)) | Err(_) => Ok((
             list_manifest_cache(pool, profile_id, repository)
                 .await?
                 .len() as i64,
-            "tag_count_stale",
+            SYNC_STATUS_TAG_COUNT_STALE,
         )),
     }
+}
+
+async fn prune_zero_tag_repository_cache(
+    pool: &sqlx::SqlitePool,
+    profile_id: Uuid,
+    repository_name: &str,
+    sync_status: &str,
+) -> Result<(), AppError> {
+    if sync_status == SYNC_STATUS_FRESH {
+        delete_repository_cache(pool, profile_id, repository_name).await?;
+    }
+
+    Ok(())
 }
 
 fn summarize_manifest(manifest: Manifest) -> (Vec<LayerSummaryDto>, Vec<PlatformSummaryDto>) {
@@ -886,7 +1025,24 @@ impl From<PlatformSummary> for PlatformSummaryDto {
 
 #[cfg(test)]
 mod tests {
-    use super::ensure_local_registry_target;
+    use chrono::Utc;
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::thread;
+
+    use super::{
+        cached_tags_page, check_registry_health_for_state, create_registry_profile_for_state,
+        delete_registry_profile_for_state, ensure_local_registry_target, list_catalog_for_state,
+        list_registry_profiles_for_state, select_registry_profile_for_state,
+        update_registry_profile_for_state, RegistryProfileInput,
+    };
+    use crate::commands::AppState;
+    use crate::store::{
+        get_registry_profile, get_selected_registry_profile, list_repository_cache,
+        upsert_manifest_cache, upsert_repository_cache, ManifestCache, RepositoryCache,
+    };
+
+    const REMOTE_REGISTRY_URL: &str = "http://203.0.113.1:9";
 
     #[tokio::test]
     async fn local_registry_target_accepts_loopback_hosts() {
@@ -910,5 +1066,385 @@ mod tests {
 
             assert_eq!(error.code, "REMOTE_REGISTRY_NOT_ALLOWED");
         }
+    }
+
+    #[tokio::test]
+    async fn registry_profile_crud_list_and_select_round_trip() {
+        let state = AppState::in_memory()
+            .await
+            .expect("in-memory state should initialize");
+
+        let created = create_registry_profile_for_state(
+            profile_input(
+                "  Remote Registry  ",
+                "https://registry.example.com/",
+                Some(" cred-a "),
+            ),
+            &state,
+        )
+        .await
+        .expect("profile should be created");
+        assert_eq!(created.name, "Remote Registry");
+        assert_eq!(created.registry_url, "https://registry.example.com");
+        assert_eq!(created.credential_ref.as_deref(), Some("cred-a"));
+
+        let updated = update_registry_profile_for_state(
+            &created.id.to_string(),
+            profile_input("Renamed Registry", "https://registry.example.org", None),
+            &state,
+        )
+        .await
+        .expect("profile should update");
+        assert_eq!(updated.id, created.id);
+        assert_eq!(updated.name, "Renamed Registry");
+        assert_eq!(updated.registry_url, "https://registry.example.org");
+        assert!(updated.credential_ref.is_none());
+
+        let selected = select_registry_profile_for_state(
+            profile_input("Selected Registry", "https://registry.example.org", None),
+            &state,
+        )
+        .await
+        .expect("selecting an existing URL should reuse the profile");
+        assert_eq!(selected.id, created.id);
+        assert_eq!(selected.name, "Selected Registry");
+
+        let selected_from_store = get_selected_registry_profile(&state.pool)
+            .await
+            .expect("selected profile should load")
+            .expect("selected profile should exist");
+        assert_eq!(selected_from_store.id, created.id);
+
+        let profiles = list_registry_profiles_for_state(&state)
+            .await
+            .expect("profiles should list");
+        assert_eq!(profiles.len(), 1);
+
+        assert!(
+            delete_registry_profile_for_state(&created.id.to_string(), &state)
+                .await
+                .expect("profile should delete")
+        );
+        assert!(list_registry_profiles_for_state(&state)
+            .await
+            .expect("profiles should list after delete")
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn create_registry_profile_reuses_existing_url() {
+        let state = AppState::in_memory()
+            .await
+            .expect("in-memory state should initialize");
+
+        let first = create_registry_profile_for_state(
+            profile_input("First", "https://registry.example.com", None),
+            &state,
+        )
+        .await
+        .expect("first profile should be created");
+
+        let existing = create_registry_profile_for_state(
+            profile_input("Second", "https://registry.example.com/", None),
+            &state,
+        )
+        .await
+        .expect("duplicate URL should return the existing profile");
+
+        assert_eq!(existing.id, first.id);
+        assert_eq!(existing.name, "First");
+
+        let profiles = list_registry_profiles_for_state(&state)
+            .await
+            .expect("profiles should list");
+        assert_eq!(profiles.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn update_registry_profile_rejects_url_collision_with_other_profile() {
+        let state = AppState::in_memory()
+            .await
+            .expect("in-memory state should initialize");
+
+        let _first = create_registry_profile_for_state(
+            profile_input("First", "https://registry.example.com", None),
+            &state,
+        )
+        .await
+        .expect("first profile should be created");
+
+        let second = create_registry_profile_for_state(
+            profile_input("Second", "https://registry.example.org", None),
+            &state,
+        )
+        .await
+        .expect("second profile should be created");
+
+        let error = update_registry_profile_for_state(
+            &second.id.to_string(),
+            profile_input("Second Renamed", "https://registry.example.com", None),
+            &state,
+        )
+        .await
+        .expect_err("URL collision with another profile should be rejected");
+
+        assert_eq!(error.code, "duplicate_registry_url");
+
+        let unchanged = get_registry_profile(&state.pool, second.id)
+            .await
+            .expect("second profile should still load")
+            .expect("second profile should still exist");
+        assert_eq!(unchanged.registry_url, "https://registry.example.org");
+    }
+
+    #[tokio::test]
+    async fn selecting_profile_does_not_persist_fixed_container_id() {
+        let state = AppState::in_memory()
+            .await
+            .expect("in-memory state should initialize");
+
+        let selected = select_registry_profile_for_state(
+            RegistryProfileInput {
+                name: Some("Manual Local".to_string()),
+                registry_url: "http://localhost:5000".to_string(),
+                credential_ref: None,
+                container_id: Some("container-123".to_string()),
+                container_name: Some("registry".to_string()),
+                config_path: Some("/etc/docker/registry/config.yml".to_string()),
+            },
+            &state,
+        )
+        .await
+        .expect("container-linked profile should select");
+
+        assert!(selected.container_id.is_none());
+        assert_eq!(selected.container_name.as_deref(), Some("registry"));
+
+        let stored = get_selected_registry_profile(&state.pool)
+            .await
+            .expect("selected profile should load")
+            .expect("selected profile should exist");
+        assert!(stored.container_id.is_none());
+        assert_eq!(stored.container_name.as_deref(), Some("registry"));
+    }
+
+    #[tokio::test]
+    async fn check_registry_health_allows_remote_urls_without_persisting_status() {
+        let state = AppState::in_memory()
+            .await
+            .expect("in-memory state should initialize");
+        let profile = select_registry_profile_for_state(
+            profile_input("Remote", REMOTE_REGISTRY_URL, None),
+            &state,
+        )
+        .await
+        .expect("remote profile should save");
+        let before = get_registry_profile(&state.pool, profile.id)
+            .await
+            .expect("profile should load before health check")
+            .expect("profile should exist before health check");
+
+        let health = check_registry_health_for_state(&profile.id.to_string(), &state)
+            .await
+            .expect("remote health checks should return live status, not local-only errors");
+        assert!(!health.reachable);
+
+        let after = get_registry_profile(&state.pool, profile.id)
+            .await
+            .expect("profile should load after health check")
+            .expect("profile should exist after health check");
+        assert_eq!(after, before);
+    }
+
+    #[tokio::test]
+    async fn remote_catalog_reads_can_fall_back_to_cache() {
+        let state = AppState::in_memory()
+            .await
+            .expect("in-memory state should initialize");
+        let profile = select_registry_profile_for_state(
+            profile_input("Remote", REMOTE_REGISTRY_URL, None),
+            &state,
+        )
+        .await
+        .expect("remote profile should save");
+        let synced_at = Utc::now();
+        upsert_repository_cache(
+            &state.pool,
+            &RepositoryCache {
+                registry_id: profile.id,
+                repository_name: "alpine".to_string(),
+                tag_count: 1,
+                last_synced_at: Some(synced_at),
+                sync_status: "cached".to_string(),
+            },
+        )
+        .await
+        .expect("repository cache should seed");
+
+        let page = list_catalog_for_state(&profile.id.to_string(), Some(25), None, &state)
+            .await
+            .expect("remote read should not be rejected before cache fallback");
+
+        assert!(page.stale);
+        assert_eq!(page.last_synced_at, Some(synced_at));
+        assert!(page.error.is_some());
+        assert_eq!(page.repositories[0].repository_name, "alpine");
+    }
+
+    #[tokio::test]
+    async fn cached_tags_page_marks_cache_stale_with_last_sync() {
+        let state = AppState::in_memory()
+            .await
+            .expect("in-memory state should initialize");
+        let profile = select_registry_profile_for_state(
+            profile_input("Remote", REMOTE_REGISTRY_URL, None),
+            &state,
+        )
+        .await
+        .expect("remote profile should save");
+        let synced_at = Utc::now();
+        upsert_manifest_cache(
+            &state.pool,
+            &ManifestCache {
+                registry_id: profile.id,
+                repository_name: "alpine".to_string(),
+                tag: "latest".to_string(),
+                digest: "sha256:test".to_string(),
+                media_type: "application/vnd.docker.distribution.manifest.v2+json".to_string(),
+                platform_summary: None,
+                raw_json: "{}".to_string(),
+                last_synced_at: synced_at,
+                gc_status: None,
+            },
+        )
+        .await
+        .expect("tag cache should seed");
+
+        let page = cached_tags_page(
+            &state,
+            profile.id,
+            "alpine".to_string(),
+            "tags request timed out".to_string(),
+        )
+        .await
+        .expect("cached tags should load");
+
+        assert!(page.stale);
+        assert_eq!(page.last_synced_at, Some(synced_at));
+        assert_eq!(page.error.as_deref(), Some("tags request timed out"));
+        assert_eq!(page.tags[0].tag, "latest");
+    }
+
+    #[tokio::test]
+    async fn list_catalog_excludes_zero_tag_repositories_from_live_result_and_cache() {
+        let (registry_url, handle) = spawn_catalog_with_tag_counts_mock();
+        let state = AppState::in_memory()
+            .await
+            .expect("in-memory state should initialize");
+        let profile =
+            select_registry_profile_for_state(profile_input("Local", &registry_url, None), &state)
+                .await
+                .expect("profile should save");
+        upsert_repository_cache(
+            &state.pool,
+            &RepositoryCache {
+                registry_id: profile.id,
+                repository_name: "empty".to_string(),
+                tag_count: 1,
+                last_synced_at: Some(Utc::now()),
+                sync_status: "fresh".to_string(),
+            },
+        )
+        .await
+        .expect("stale repository cache should seed");
+
+        let page = list_catalog_for_state(&profile.id.to_string(), Some(25), None, &state)
+            .await
+            .expect("live catalog should load");
+        let requests = handle.join().expect("mock registry thread should finish");
+
+        assert!(!page.stale);
+        assert_eq!(page.repositories.len(), 1);
+        assert_eq!(page.repositories[0].repository_name, "alpine");
+        assert_eq!(page.repositories[0].tag_count, 1);
+        assert!(requests
+            .iter()
+            .any(|request| request.starts_with("GET /v2/empty/tags/list?n=100 HTTP/1.1")));
+
+        let cached = list_repository_cache(&state.pool, profile.id)
+            .await
+            .expect("repository cache should load");
+        assert_eq!(cached.len(), 1);
+        assert_eq!(cached[0].repository_name, "alpine");
+    }
+
+    #[tokio::test]
+    async fn remote_destructive_targets_are_rejected() {
+        let error = ensure_local_registry_target("https://registry.example.com")
+            .await
+            .expect_err("remote destructive target should be rejected");
+
+        assert_eq!(error.code, "REMOTE_REGISTRY_NOT_ALLOWED");
+    }
+
+    fn profile_input(
+        name: &str,
+        registry_url: &str,
+        credential_ref: Option<&str>,
+    ) -> RegistryProfileInput {
+        RegistryProfileInput {
+            name: Some(name.to_string()),
+            registry_url: registry_url.to_string(),
+            credential_ref: credential_ref.map(str::to_string),
+            container_id: None,
+            container_name: None,
+            config_path: None,
+        }
+    }
+
+    fn spawn_catalog_with_tag_counts_mock() -> (String, thread::JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("mock registry should bind");
+        let base_url = format!("http://{}", listener.local_addr().expect("mock address"));
+
+        let handle = thread::spawn(move || {
+            let mut requests = Vec::new();
+            for _ in 0..3 {
+                let (mut stream, _) = listener.accept().expect("mock request should connect");
+                let request = read_request(&mut stream);
+                let body = if request.starts_with("GET /v2/_catalog") {
+                    r#"{"repositories":["alpine","empty"]}"#
+                } else if request.starts_with("GET /v2/alpine/tags/list") {
+                    r#"{"name":"alpine","tags":["latest"]}"#
+                } else if request.starts_with("GET /v2/empty/tags/list") {
+                    r#"{"name":"empty","tags":[]}"#
+                } else {
+                    r#"{"errors":[{"code":"NOT_FOUND"}]}"#
+                };
+                write_json_response(&mut stream, body);
+                requests.push(request);
+            }
+            requests
+        });
+
+        (base_url, handle)
+    }
+
+    fn read_request(stream: &mut TcpStream) -> String {
+        let mut request_buffer = [0_u8; 2048];
+        let bytes_read = stream
+            .read(&mut request_buffer)
+            .expect("mock request should read");
+        String::from_utf8_lossy(&request_buffer[..bytes_read]).to_string()
+    }
+
+    fn write_json_response(stream: &mut TcpStream, body: &str) {
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        stream
+            .write_all(response.as_bytes())
+            .expect("mock response should write");
     }
 }
