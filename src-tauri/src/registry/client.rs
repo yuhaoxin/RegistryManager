@@ -4,7 +4,8 @@ use url::Url;
 use super::error::RegistryError;
 use super::types::{
     Catalog, ImageManifestDocument, LayerSummary, Manifest, ManifestListDocument, PlatformSummary,
-    TagsList, DOCKER_MANIFEST_LIST, DOCKER_SCHEMA2_MANIFEST, OCI_IMAGE_INDEX, OCI_IMAGE_MANIFEST,
+    TagDigest, TagsList, DOCKER_MANIFEST_LIST, DOCKER_SCHEMA2_MANIFEST, OCI_IMAGE_INDEX,
+    OCI_IMAGE_MANIFEST,
 };
 
 const MANIFEST_ACCEPT_HEADER: &str = concat!(
@@ -56,7 +57,7 @@ impl RegistryClient {
 
     pub async fn ping(&self) -> Result<(), RegistryError> {
         let response = self
-            .authorize(self.http.get(self.url(&["v2"], &[])?))
+            .authorize(self.http.get(self.url(&["v2", ""], &[])?))
             .send()
             .await?;
         Self::ensure_success(response.status())?;
@@ -148,6 +149,17 @@ impl RegistryClient {
             .and_then(|value| value.to_str().ok())
             .map(str::to_owned)
             .ok_or(RegistryError::DigestNotFound)
+    }
+
+    pub async fn resolve_tag_digest(
+        &self,
+        name: &str,
+        tag: &str,
+    ) -> Result<TagDigest, RegistryError> {
+        Ok(TagDigest {
+            tag: tag.to_string(),
+            digest: self.resolve_digest(name, tag).await?,
+        })
     }
 
     pub async fn delete_manifest(&self, name: &str, digest: &str) -> Result<(), RegistryError> {
