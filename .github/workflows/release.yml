@@ -21,18 +21,32 @@ env:
 
 jobs:
   publish:
-    name: Publish (${{ matrix.platform }})
+    name: Publish (${{ matrix.name }})
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            args: --bundles dmg
-          - platform: windows-latest
+          - name: macOS Intel
+            platform: macos-latest
+            rustTarget: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin --bundles dmg
+          - name: macOS Apple Silicon
+            platform: macos-latest
+            rustTarget: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin --bundles dmg
+          - name: Windows
+            platform: windows-latest
+            rustTarget: ""
             args: --bundles nsis,msi
-          - platform: ubuntu-22.04
+          - name: Linux x86_64
+            platform: ubuntu-22.04
+            rustTarget: ""
             args: --bundles deb,appimage
+          - name: Linux ARM64
+            platform: ubuntu-22.04-arm
+            rustTarget: aarch64-unknown-linux-gnu
+            args: --target aarch64-unknown-linux-gnu --bundles deb
 
     steps:
       - name: Checkout
@@ -54,6 +68,10 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Rust target
+        if: matrix.rustTarget != ''
+        run: rustup target add ${{ matrix.rustTarget }}
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
