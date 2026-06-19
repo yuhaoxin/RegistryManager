@@ -1,19 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { addAndSelectManualProfile } from "./profile-helpers";
 
 const evidenceDir = path.join(process.cwd(), ".sisyphus", "evidence");
 
 test("offline mode reopens profile with stale cached catalog", async ({ page }) => {
   await mkdir(evidenceDir, { recursive: true });
-  await page.goto("/");
-  await page.evaluate(() => {
-    localStorage.removeItem("rm-mock-registry-offline");
-    localStorage.removeItem("rm-selected-profile");
-  });
-  await page.reload();
-
-  await page.getByTestId("rm-local-registry-container-picker").locator("label").first().click();
+  await addAndSelectManualProfile(page, { catalog: true });
   await expect(page.getByTestId("rm-repository-card").first()).toBeVisible();
   await page.getByRole("button", { name: /Open alpine/i }).click();
   await expect(page.getByTestId("rm-tag-browser")).toContainText("latest");

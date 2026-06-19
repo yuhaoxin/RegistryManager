@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { addAndSelectManualProfile, resetMockState } from "./profile-helpers";
 
 const evidenceDir = path.join(process.cwd(), ".sisyphus", "evidence");
 
@@ -10,7 +11,7 @@ async function ensureEvidenceDir() {
 
 test("dashboard empty state screenshot", async ({ page }) => {
   await ensureEvidenceDir();
-  await page.goto("/");
+  await resetMockState(page);
 
   await expect(page.getByTestId("app-root")).toBeVisible();
   await expect(page.getByTestId("rm-docker-status-card")).toBeVisible();
@@ -24,12 +25,9 @@ test("dashboard empty state screenshot", async ({ page }) => {
 
 test("dashboard search no results screenshot", async ({ page }) => {
   await ensureEvidenceDir();
-  await page.goto("/");
+  await addAndSelectManualProfile(page, { catalog: true });
 
   await expect(page.getByTestId("app-root")).toBeVisible();
-
-  // Select the local registry container so the repository browser appears
-  await page.getByTestId("rm-local-registry-container-picker").locator("label").click();
   await expect(page.getByTestId("rm-repository-search")).toBeVisible();
 
   const searchInput = page.getByTestId("rm-repository-search").locator("input");

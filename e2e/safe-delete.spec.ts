@@ -1,19 +1,18 @@
 import { expect, test } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { addAndSelectManualProfile } from "./profile-helpers";
 
 const evidenceDir = path.join(process.cwd(), ".sisyphus", "evidence");
 
 test("safe manifest delete uses simple confirm dialog", async ({ page }) => {
   await mkdir(evidenceDir, { recursive: true });
-  await page.goto("/");
+  await addAndSelectManualProfile(page, { catalog: true });
   await page.evaluate(() => {
     localStorage.removeItem("rm-mock-delete-404");
     localStorage.removeItem("rm-audit-events");
-    localStorage.removeItem("rm-mock-docker-unavailable");
   });
 
-  await page.getByTestId("rm-local-registry-container-picker").locator("label").first().click();
   await page.getByRole("button", { name: /Open alpine/i }).click();
   await page.getByText("latest").click();
   await expect(page.getByTestId("rm-manifest-drawer")).toBeVisible();

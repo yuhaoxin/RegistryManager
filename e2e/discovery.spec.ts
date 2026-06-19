@@ -1,18 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { addAndSelectManualProfile } from "./profile-helpers";
 
-test("discovers and selects the existing localhost:5000 registry container", async ({ page }) => {
-  await page.goto("/");
-  await page.evaluate(() => {
-    localStorage.removeItem("rm-mock-docker-unavailable");
-    localStorage.removeItem("rm-selected-profile");
-  });
-  await page.reload();
+test("adds and selects a manual localhost registry profile", async ({ page }) => {
+  const profile = await addAndSelectManualProfile(page, { catalog: true });
 
-  const picker = page.getByTestId("rm-local-registry-container-picker");
-  await expect(picker).toContainText("registry");
-  await expect(picker).toContainText("5000:5000");
-
-  await picker.locator("label").first().click();
-  await expect(page.getByTestId("rm-registry-container-card")).toContainText("registry");
-  await expect(page.getByTestId("rm-registry-container-card")).toContainText("5000:5000");
+  await expect(page.getByTestId("rm-profile-list")).toContainText(profile.name);
+  await expect(page.getByTestId("rm-profile-list")).toContainText(profile.url);
+  await expect(page.getByTestId("rm-repository-browser")).toBeVisible();
 });

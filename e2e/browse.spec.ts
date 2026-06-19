@@ -1,19 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { addAndSelectManualProfile } from "./profile-helpers";
 
 const evidenceDir = path.join(process.cwd(), ".sisyphus", "evidence");
 
-test("select existing localhost:5000 registry and browse manifest", async ({ page }) => {
+test("adds manual localhost registry profile and browses manifest", async ({ page }) => {
   await mkdir(evidenceDir, { recursive: true });
-  await page.goto("/");
-  await page.evaluate(() => localStorage.removeItem("rm-mock-registry-offline"));
+  await addAndSelectManualProfile(page, { catalog: true });
 
-  await expect(page.getByTestId("rm-local-registry-container-picker")).toBeVisible();
-  await page.getByTestId("rm-local-registry-container-picker").locator("label").first().click();
-
-  await expect(page.getByTestId("rm-registry-container-card")).toBeVisible();
-  await expect(page.getByTestId("rm-registry-container-card")).toContainText("5000:5000");
   await expect(page.getByTestId("rm-repository-browser")).toBeVisible();
   await expect(page.getByTestId("rm-repository-card").first()).toBeVisible();
 

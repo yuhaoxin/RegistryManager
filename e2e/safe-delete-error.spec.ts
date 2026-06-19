@@ -1,18 +1,18 @@
 import { expect, test } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { addAndSelectManualProfile } from "./profile-helpers";
 
 const evidenceDir = path.join(process.cwd(), ".sisyphus", "evidence");
 
 test("safe delete displays specific mocked 404 error", async ({ page }) => {
   await mkdir(evidenceDir, { recursive: true });
-  await page.goto("/");
+  await addAndSelectManualProfile(page, { catalog: true });
   await page.evaluate(() => {
     localStorage.setItem("rm-mock-delete-404", "true");
     localStorage.removeItem("rm-audit-events");
   });
 
-  await page.getByTestId("rm-local-registry-container-picker").locator("label").first().click();
   await page.getByRole("button", { name: /Open alpine/i }).click();
   await page.getByText("latest").click();
   await page.getByTestId("delete-manifest-button").click();
