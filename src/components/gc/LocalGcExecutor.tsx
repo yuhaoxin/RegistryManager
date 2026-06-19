@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { runTauriCommand } from "../../hooks/useTauriCommand";
 import type { GcResult } from "../../types";
+import { isLocalRegistryUrl } from "../../utils/registryUrl";
 import { GcConfirmDialog } from "./GcConfirmDialog";
 import { GcLiveLogPanel } from "./GcLiveLogPanel";
 import { GcPreflightList } from "./GcPreflightList";
@@ -8,39 +9,20 @@ import { GcResultSummary } from "./GcResultSummary";
 import { GcStepTimeline } from "./GcStepTimeline";
 
 export interface LocalGcExecutorProps {
-  containerName: string;
+  containerId?: string | null;
+  containerName?: string | null;
   profileId?: string;
+  registryUrl?: string;
+  onAuditEventRecorded?: () => void;
 }
 
-const placeholderPreflight = [
-  { name: "Docker daemon", status: "ok" as const, message: "Local Docker daemon is reachable" },
-  { name: "Container state", status: "ok" as const, message: "Target container exists" },
-  { name: "Storage mounts", status: "ok" as const, message: "Mounts can be reused in temp container" },
-  { name: "Registry config", status: "warn" as const, message: "Using default /etc/docker/registry/config.yml" },
-];
-
-const placeholderSteps = [
-  { id: "snapshot", title: "Snapshot original state", status: "pending" as const, note: "Waiting to capture container config and mounts" },
-  { id: "stop", title: "Stop original container", status: "pending" as const, note: "Runs only after confirmation" },
-  { id: "gc", title: "Run garbage-collect", status: "pending" as const, note: "Temporary GC container has not started" },
-  { id: "cleanup", title: "Remove temp container", status: "pending" as const },
-  { id: "restart", title: "Restart registry", status: "pending" as const, note: "Only if originally running" },
-  { id: "health", title: "/v2/ health check", status: "pending" as const },
-];
-
-const placeholderLogs = [
-  "[preflight] Docker context: default",
-  "[preflight] Container registry exists (id: abc123)",
-  "[gc] registry garbage-collect --delete-untagged /etc/docker/registry/config.yml",
-  "[gc] Deleting blob: sha256:abc…",
-  "[gc] Deleting blob: sha256:def…",
-];
-
-export function LocalGcExecutor({ containerName, profileId }: LocalGcExecutorProps) {
+export function LocalGcExecutor({ containerId, containerName, profileId, registryUrl, onAuditEventRecorded }: LocalGcExecutorProps) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [result, setResult] = useState<GcResult | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [running, setRunning] = useState(false);
+  const linkedContainerLabel = containerName?.trim() || registryUrl || containerId?.slice(0, 12);
+  const gcAvailable = Boolean(profileId && registryUrl && isLocalRegistryUrl(registryUrl));
 
   async function runGc() {
     setShowConfirm(false);
@@ -49,12 +31,25 @@ export function LocalGcExecutor({ containerName, profileId }: LocalGcExecutorPro
     try {
       const output = await runTauriCommand<GcResult>("run_local_gc", { profileId, confirmDowntime: true });
       setResult(output);
+      onAuditEventRecorded?.();
     } catch (err) {
       setError(errorMessage(err));
+      onAuditEventRecorded?.();
     } finally {
       setRunning(false);
     }
   }
+
+  const steps = result?.steps.map((item) => ({
+    id: item.id,
+    title: item.id,
+    status: mapStepStatus(item.status),
+    note: item.message,
+  })) ?? [];
+
+  const logs = result?.logs ?? [];
+
+  if (!gcAvailable) return null;
 
   return (
     <div className="card" data-testid="rm-local-gc-executor">
@@ -65,9 +60,9 @@ export function LocalGcExecutor({ containerName, profileId }: LocalGcExecutorPro
         </button>
       </div>
       <div className="card-body">
-        <GcPreflightList items={placeholderPreflight} />
-        <GcStepTimeline steps={result?.steps.map((item) => ({ id: item.id, title: item.id, status: mapStepStatus(item.status), note: item.message })) ?? placeholderSteps} />
-        <GcLiveLogPanel logs={result?.logs ?? placeholderLogs} />
+        <GcPreflightList items={[]} />
+        <GcStepTimeline steps={steps} />
+        <GcLiveLogPanel logs={logs} />
         {error ? <div className="preflight-item error" role="alert">{error}</div> : null}
         {result?.status === "gc_failed" ? (
           <div className="preflight-item error" role="alert">
@@ -83,7 +78,7 @@ export function LocalGcExecutor({ containerName, profileId }: LocalGcExecutorPro
 
       <GcConfirmDialog
         open={showConfirm}
-        containerName={containerName}
+        containerName={linkedContainerLabel ?? "selected local registry"}
         onConfirm={runGc}
         onCancel={() => setShowConfirm(false)}
       />

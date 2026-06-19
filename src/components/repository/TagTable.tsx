@@ -2,10 +2,11 @@ import { Tag } from "../../types";
 
 export interface TagTableProps {
   tags: Tag[];
+  stale?: boolean;
   onSelect?: (tag: Tag) => void;
 }
 
-export function TagTable({ tags, onSelect }: TagTableProps) {
+export function TagTable({ tags, stale, onSelect }: TagTableProps) {
   return (
     <div className="card" data-testid="rm-tag-table">
       <div className="card-header">
@@ -28,7 +29,14 @@ export function TagTable({ tags, onSelect }: TagTableProps) {
                 onClick={() => onSelect?.(tag)}
                 style={{ cursor: onSelect ? "pointer" : "default" }}
               >
-                <td>{tag.name}</td>
+                <td>
+                  {tag.name}
+                  {stale || tag.stale ? (
+                    <span className="badge badge-warning" data-testid="rm-tag-stale-marker">
+                      Stale cache
+                    </span>
+                  ) : null}
+                </td>
                 <td>{tag.digest}</td>
                 <td>{tag.size}</td>
                 <td>{tag.created}</td>
