@@ -28,10 +28,13 @@ async fn docker_context_rejects_non_local_docker_context() {
 async fn docker_context_reports_unavailable_daemon() {
     let _guard = env_lock().await;
     let previous = std::env::var("DOCKER_HOST").ok();
+    #[cfg(unix)]
     std::env::set_var(
         "DOCKER_HOST",
         "unix:///tmp/registry-manager-missing-docker.sock",
     );
+    #[cfg(windows)]
+    std::env::set_var("DOCKER_HOST", "npipe:////./pipe/rm_missing_engine");
 
     let error = DockerClient::connect_local()
         .await

@@ -11,7 +11,7 @@ impl DockerClient {
     pub async fn connect_local() -> Result<Self, DockerError> {
         verify_local_docker_context()?;
 
-        let docker = Docker::connect_with_local_defaults()
+        let docker = Docker::connect_with_defaults()
             .map_err(|error| DockerError::DockerUnavailable(error.to_string()))?;
 
         docker
